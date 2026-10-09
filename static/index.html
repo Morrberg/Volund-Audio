@@ -159,7 +159,7 @@ function setMetadata(fields,clear=tracks[vocal]?.metadata?.clear||false){
 function renderMetadata(){
   const info=metaInfo[vocal]||{fields:[],pictures:0,binary:0},override=tracks[vocal]?.metadata;
   $("#metaSummary").textContent=info.error?"Metadata kunde inte läsas: "+info.error:
-    `${info.fields.length} textfält · ${info.pictures} inbäddade bilder · ${info.binary} binära fält`+(override?.clear?". Originalmetadata rensas vid export.":"");
+    `${info.fields.length} tolkade textfält · ${info.pictures} inbäddade bilder · ${info.binary} binära fält`+((info.formats||[]).length?" · "+info.formats.join(", "):"")+(override?.clear?". Originalmetadata rensas vid export.":"");
   $("#metaFields").replaceChildren();
   for(const [i,f] of metadataFields().entries()){
     const row=document.createElement("div");row.className="meta-row";

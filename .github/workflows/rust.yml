@@ -40,6 +40,22 @@ jobs:
       - name: Run Windows tests
         run: cargo test --release
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install WebView test driver
+        run: npm install --prefix target/ui-tools --no-save --ignore-scripts playwright-core@1.58.2
+      - name: Test native Windows UI
+        run: node tests/desktop.e2e.cjs
+      - name: Upload UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vocal-Cleaner-UI-Previews
+          path: target/ui-*.png
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
