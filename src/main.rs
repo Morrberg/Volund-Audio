@@ -1,6 +1,8 @@
 //! Vocal Cleaner: eget Windows-fönster, lokal ljudbehandling.
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
+mod metadata;
+
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, HeaderName, StatusCode},
@@ -156,7 +158,7 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
 #[derive(Deserialize)]
 struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32 }
 #[derive(Deserialize)]
-struct ExportReq { stem: String, edits: Vec<Edit> }
+struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes> }
 
 async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): Json<ExportReq>)
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
@@ -193,7 +195,7 @@ async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): J
     let stem_name = FsPath::new(&name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     Ok(([(header::CONTENT_TYPE, "audio/wav".to_string()),
          (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{stem_name}_cleaned.wav\""))],
-        buf.into_inner()))
+        metadata::apply(&sess(&root, &sid)?.join(&name), buf.into_inner(), r.metadata.as_ref()).map_err(bad)?))
 }
 
 async fn serve(ready: std::sync::mpsc::Sender<String>) {
@@ -204,6 +206,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/upload", post(upload))
         .route("/api/stem/:sid/:name", get(stem))
         .route("/api/analyze/:sid/:name", get(analyze))
+        .route("/api/metadata/:sid/:name", get(inspect_metadata))
         .route("/api/export/:sid", post(export))
         .route("/api/save/:sid", post(save))
         .route("/api/project/:sid", post(save_project))
@@ -327,4 +330,10 @@ mod tests {
         assert!(archive.by_name("Drums.wav").is_ok());
         fs::remove_dir_all(dir).unwrap();
     }
+}
+
+async fn inspect_metadata(State(root): State<PathBuf>, Path((sid, name)): Path<(String, String)>) -> R<Json<Value>> {
+    let path = sess(&root, &sid)?.join(fname(&name));
+    let info = tokio::task::spawn_blocking(move || metadata::inspect(&path)).await.map_err(bad)?.map_err(bad)?;
+    Ok(Json(info))
 }
