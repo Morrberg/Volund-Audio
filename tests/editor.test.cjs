@@ -1,8 +1,8 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(){this.children=[]},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
+function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(){this.children=[]},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
 const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
- document:{createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
+ document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
 const html=fs.readFileSync('static/index.html','utf8');vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);

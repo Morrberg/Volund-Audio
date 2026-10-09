@@ -1,0 +1,358 @@
+//! Deterministic offline stereo mastering. Every profile starts from the unmastered mix.
+use crate::{bad, decode, fname, sess, Edit, R};
+use axum::{extract::{Path, State}, http::{header, HeaderName}, response::{IntoResponse, Response}, Json};
+use ebur128::{EbuR128, Mode};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::{collections::{HashSet, VecDeque}, f64::consts::PI, io::{Cursor, Write}, path::Path as FsPath};
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct MixTrack {
+    pub stem: String,
+    #[serde(default)] pub edits: Vec<Edit>,
+    #[serde(default)] pub gain_db: f64,
+    #[serde(default)] pub mute: bool,
+    #[serde(default)] pub solo: bool,
+}
+#[derive(Clone, Deserialize, Serialize)]
+pub struct Profile {
+    pub id: String,
+    pub sample_rate: u32,
+    pub bits: u16,
+    pub target_lufs: Option<f64>,
+    pub ceiling_db: f64,
+    pub bass_db: f64,
+    pub mid_db: f64,
+    pub treble_db: f64,
+    pub compression: f64,
+    pub mono_bass_hz: f64,
+    pub highpass_hz: f64,
+    pub limiter: bool,
+}
+impl Profile {
+    fn validate(&self) -> Result<(), String> {
+        if !["Spotify", "Vinyl", "CD", "Kassett"].contains(&self.id.as_str()) { return Err("Okänd masteringprofil".into()); }
+        if ![44100, 48000, 88200, 96000].contains(&self.sample_rate) || ![16,24].contains(&self.bits) { return Err("Välj 44,1/48/88,2/96 kHz och 16/24 bit".into()); }
+        if self.id == "CD" && (self.sample_rate != 44100 || self.bits != 16) { return Err("CD kräver 16 bit / 44,1 kHz".into()); }
+        for (v,a,b) in [(self.ceiling_db,-12.,-0.1),(self.bass_db,-6.,6.),(self.mid_db,-6.,6.),(self.treble_db,-6.,6.),(self.compression,0.,100.),(self.mono_bass_hz,0.,250.),(self.highpass_hz,0.,80.)] {
+            if !v.is_finite() || v < a || v > b { return Err("Masteringinställning utanför tillåtet intervall".into()); }
+        }
+        if self.target_lufs.is_some_and(|v| !v.is_finite() || !(-30. ..=-6.).contains(&v)) { return Err("LUFS-målet måste vara mellan −30 och −6".into()); }
+        Ok(())
+    }
+}
+#[derive(Clone, Deserialize, Serialize)]
+pub struct Request {
+    pub title: String,
+    #[serde(default)] pub artist: String,
+    #[serde(default)] pub album: String,
+    pub tracks: Vec<MixTrack>,
+    pub profiles: Vec<Profile>,
+}
+#[derive(Clone, Serialize)]
+pub struct Metrics {
+    pub lufs: Option<f64>,
+    pub true_peak_db: Option<f64>,
+    pub lra: Option<f64>,
+    pub crest_db: Option<f64>,
+    pub correlation: Option<f64>,
+    pub bass_side_ratio: f64,
+    pub treble_ratio: f64,
+    pub duration: f64,
+}
+#[derive(Serialize)]
+pub struct Report {
+    pub profile: String,
+    pub input: Metrics,
+    pub output: Metrics,
+    pub requested_lufs: Option<f64>,
+    pub gain_db: f64,
+    pub compressor_reduction_db: f64,
+    pub limiter_reduction_db: f64,
+    pub safety_attenuation_db: f64,
+    pub warnings: Vec<String>,
+}
+fn db(v: f64) -> Option<f64> { if v > 1e-15 { Some(20.*v.log10()) } else { None } }
+fn gain(db: f64) -> f64 { 10f64.powf(db/20.) }
+fn finite(v: Result<f64, ebur128::Error>) -> Option<f64> { v.ok().filter(|x| x.is_finite()) }
+
+pub fn measure(y: &[f32], sr: u32) -> Result<Metrics, String> {
+    let mut meter = EbuR128::new(2, sr, Mode::I | Mode::LRA | Mode::TRUE_PEAK | Mode::HISTOGRAM).map_err(|e|e.to_string())?;
+    meter.add_frames_f32(y).map_err(|e|e.to_string())?;
+    // Flush the interpolation filter's tail without affecting the loudness integration.
+    let lufs=finite(meter.loudness_global());let lra=finite(meter.loudness_range());
+    meter.add_frames_f32(&[0.;128]).map_err(|e|e.to_string())?;
+    let peak=(0..2).filter_map(|c|meter.true_peak(c).ok()).fold(0f64,f64::max);
+    let (mut ll,mut rr,mut lr,mut squares,mut sample_peak)=(0.,0.,0.,0.,0f64);
+    let (mut low_l,mut low_r,mut high_l,mut high_r)=(0.,0.,0.,0.);
+    let (mut bass_mid,mut bass_side,mut treble)=(0.,0.,0.);
+    let a=1.-(-2.*PI*120./sr as f64).exp();let h=1.-(-2.*PI*6000./sr as f64).exp();
+    for frame in y.chunks_exact(2) {
+        let (l,r)=(frame[0] as f64,frame[1] as f64);
+        ll+=l*l;rr+=r*r;lr+=l*r;squares+=l*l+r*r;sample_peak=sample_peak.max(l.abs()).max(r.abs());
+        low_l+=a*(l-low_l);low_r+=a*(r-low_r);high_l+=h*(l-high_l);high_r+=h*(r-high_r);
+        bass_mid+=((low_l+low_r)*0.5).powi(2);bass_side+=((low_l-low_r)*0.5).powi(2);
+        treble+=(l-high_l).powi(2)+(r-high_r).powi(2);
+    }
+    let rms=(squares/y.len().max(1) as f64).sqrt();
+    Ok(Metrics{lufs,true_peak_db:db(peak),lra,crest_db:if rms>1e-15 { db(sample_peak/rms) } else {None},correlation:if ll*rr>1e-20 {Some((lr/(ll*rr).sqrt()).clamp(-1.,1.))}else{None},bass_side_ratio:bass_side/(bass_mid+bass_side+1e-30),treble_ratio:treble/(squares+1e-30),duration:y.len() as f64/2./sr as f64})
+}
+
+pub fn apply_edits(y: &mut [f32], sr: u32, ch: usize, edits: &[Edit]) -> Result<(), String> {
+    let frames=y.len()/ch;
+    for e in edits {
+        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+        let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
+        let mut at=|i:usize,g:f32|{for c in 0..ch {y[i*ch+c]*=g}};
+        match e.kind.as_str() {
+            "fadein"=>for i in 0..n {at(a+i,i as f32/n as f32)},
+            "fadeout"=>for i in 0..n {at(a+i,1.-i as f32/n as f32)},
+            _=>{let f=((e.fade*sr as f32).round() as usize).min(a).min(frames-b);for i in 0..f {at(a-f+i,1.-i as f32/f as f32);at(b+i,i as f32/f as f32)}for i in a..b {at(i,0.)}}
+        }
+    }
+    Ok(())
+}
+/// Symmetric windowed-sinc resampling. No latency, fixed rounded output duration.
+pub fn stereo_resample(y: &[f32], from: u32, ch: usize, to: u32) -> Result<Vec<f32>, String> {
+    if !(1..=2).contains(&ch) || from<8000 || from>192000 || y.iter().any(|v|!v.is_finite()) {return Err("Mastering stöder ändligt mono/stereoljud, 8–192 kHz".into())}
+    let input=y.len()/ch;let output=(input as f64*to as f64/from as f64).round() as usize;
+    if output>to as usize*60*60 {return Err("En mix får vara högst 60 minuter".into())}
+    let mut result=vec![0.;output*2];
+    if from==to {for (i,f) in y.chunks_exact(ch).enumerate(){result[2*i]=f[0];result[2*i+1]=f[ch-1]}return Ok(result)}
+    let cutoff=(to as f64/from as f64).min(1.)*0.94;let radius=(32./cutoff).ceil() as isize;
+    // Precompute fractional phases: avoids transcendental functions per output sample.
+    let phases=1024;let taps=(radius*2) as usize;let mut kernel=vec![0.;phases*taps];
+    for phase in 0..phases {
+        let frac=phase as f64/phases as f64;let mut sum=0.;
+        for tap in 0..taps {let d=(tap as isize-radius+1) as f64-frac;let x=d*cutoff;let w=if d.abs()<radius as f64 {(if x.abs()<1e-12 {cutoff}else{(PI*x).sin()/(PI*d)})*(0.5+0.5*(PI*d/radius as f64).cos())}else{0.};kernel[phase*taps+tap]=w;sum+=w}
+        for w in &mut kernel[phase*taps..(phase+1)*taps] {*w/=sum}
+    }
+    for i in 0..output {
+        let pos=i as f64*from as f64/to as f64;let center=pos.floor() as isize;let phase=((pos-pos.floor())*phases as f64) as usize;
+        let (mut l,mut r)=(0.,0.);
+        for (tap,w) in kernel[phase*taps..(phase+1)*taps].iter().enumerate(){let index=center+tap as isize-radius+1;if index>=0 && (index as usize)<input {let j=index as usize*ch;l+=y[j] as f64*w;r+=y[j+ch-1] as f64*w}}
+        result[2*i]=l as f32;result[2*i+1]=r as f32;
+    }
+    Ok(result)
+}
+fn mix(dir: &FsPath, tracks: &[MixTrack], sr: u32) -> Result<Vec<f32>, String> {
+    if tracks.is_empty() || tracks.len()>64 {return Err("Välj 1–64 stems".into())}
+    let any_solo=tracks.iter().any(|t|t.solo&&!t.mute);let mut seen=HashSet::new();let mut out=Vec::<f32>::new();
+    for t in tracks {
+        if fname(&t.stem)!=t.stem || !crate::is_audio(&t.stem) || !seen.insert(&t.stem) {return Err("Ogiltigt eller dubblerat spårnamn".into())}
+        if !t.gain_db.is_finite() || !(-60. ..=12.).contains(&t.gain_db) {return Err("Spårnivån måste vara −60 till +12 dB".into())}
+        let (mut y,rate,ch)=decode(&dir.join(&t.stem))?;apply_edits(&mut y,rate,ch,&t.edits)?;
+        let y=stereo_resample(&y,rate,ch,sr)?;
+        // Muted/solo-excluded tracks still determine the full mix duration.
+        out.resize(out.len().max(y.len()),0.);
+        if t.mute || (any_solo&&!t.solo) {continue}
+        let g=gain(t.gain_db) as f32;for (a,b) in out.iter_mut().zip(y) {*a+=b*g}
+    }
+    if out.is_empty() || out.iter().any(|v|!v.is_finite()) {return Err("Mixen saknar giltigt ljud".into())}
+    Ok(out)
+}
+
+#[derive(Clone,Copy)]
+struct Biquad {b:[f64;3],a:[f64;2],z:[f64;2]}
+impl Biquad {
+    fn tick(&mut self,x:f64)->f64 {let y=self.b[0]*x+self.z[0];self.z[0]=self.b[1]*x-self.a[0]*y+self.z[1];self.z[1]=self.b[2]*x-self.a[1]*y;y}
+    fn new(kind:&str,rate:u32,freq:f64,db:f64)->Self {
+        let w=2.*PI*freq/rate as f64;let (s,c)=w.sin_cos();let a=10f64.powf(db/40.);let alpha=s/(2.*0.7071067811865476);let beta=2.*a.sqrt()*alpha;
+        let (b,a0,a1,a2)=match kind {
+            "low"=>([a*((a+1.)-(a-1.)*c+beta),2.*a*((a-1.)-(a+1.)*c),a*((a+1.)-(a-1.)*c-beta)],(a+1.)+(a-1.)*c+beta,-2.*((a-1.)+(a+1.)*c),(a+1.)+(a-1.)*c-beta),
+            "high"=>([a*((a+1.)+(a-1.)*c+beta),-2.*a*((a-1.)+(a+1.)*c),a*((a+1.)+(a-1.)*c-beta)],(a+1.)-(a-1.)*c+beta,2.*((a-1.)-(a+1.)*c),(a+1.)-(a-1.)*c-beta),
+            "peak"=>([1.+alpha*a,-2.*c,1.-alpha*a],1.+alpha/a,-2.*c,1.-alpha/a),
+            _=>([(1.+c)/2.,-(1.+c),(1.+c)/2.],1.+alpha,-2.*c,1.-alpha),
+        };
+        Self{b:b.map(|v|v/a0),a:[a1/a0,a2/a0],z:[0.;2]}
+    }
+}
+fn tone(y:&mut [f32],p:&Profile) {
+    for (kind,f,db) in [("hp",p.highpass_hz,0.),("low",120.,p.bass_db),("peak",1000.,p.mid_db),("high",6000.,p.treble_db)] {
+        if (kind=="hp"&&f<=0.) || (kind!="hp"&&db==0.) {continue}
+        let mut filters=[Biquad::new(kind,p.sample_rate,f,db);2];for frame in y.chunks_exact_mut(2) {for c in 0..2 {frame[c]=filters[c].tick(frame[c] as f64) as f32}}
+    }
+    if p.mono_bass_hz>0. {
+        let a=1.-(-2.*PI*p.mono_bass_hz/p.sample_rate as f64).exp();let mut low=0.;
+        for f in y.chunks_exact_mut(2){let mid=(f[0] as f64+f[1] as f64)*0.5;let side=(f[0] as f64-f[1] as f64)*0.5;low+=a*(side-low);let side=side-low;f[0]=(mid+side) as f32;f[1]=(mid-side) as f32}
+    }
+}
+fn compress(y:&mut [f32],p:&Profile)->f64 {
+    if p.compression==0. {return 0.}
+    let amount=p.compression/100.;let ratio=1.+amount*1.5;let threshold=-12.-amount*8.;let knee=6.;
+    let attack=(-1./(0.025*p.sample_rate as f64)).exp();let release=(-1./(0.150*p.sample_rate as f64)).exp();let detector=(-1./(0.010*p.sample_rate as f64)).exp();
+    let (mut power,mut reduction,mut max_reduction)=(0.,0.,0f64);
+    for f in y.chunks_exact_mut(2) {
+        let instantaneous=(f[0] as f64).powi(2).max((f[1] as f64).powi(2));power=detector*power+(1.-detector)*instantaneous;
+        let over=10.*power.max(1e-30).log10()-threshold;
+        let target=if over<=-knee/2. {0.} else if over>=knee/2. {(1.-1./ratio)*over} else {(1.-1./ratio)*(over+knee/2.).powi(2)/(2.*knee)};
+        let coefficient=if target>reduction {attack}else{release};reduction=coefficient*reduction+(1.-coefficient)*target;max_reduction=max_reduction.max(reduction);
+        let g=gain(-reduction) as f32;f[0]*=g;f[1]*=g;
+    }
+    max_reduction
+}
+fn limit(y:&mut [f32],sr:u32,ceiling:f64)->f64 {
+    let frames=y.len()/2;let ahead=(sr as f64*0.005).round() as usize;let ceiling=gain(ceiling);
+    let mut maxima=VecDeque::<(usize,f64)>::new();let (mut next,mut g,mut reduction)=(0usize,1f64,0f64);let release=(-1./(0.080*sr as f64)).exp();
+    for i in 0..frames {
+        while next<frames && next<=i+ahead {
+            let v=(y[2*next] as f64).abs().max((y[2*next+1] as f64).abs());
+            while maxima.back().is_some_and(|x|x.1<=v) {maxima.pop_back();}maxima.push_back((next,v));next+=1;
+        }
+        while maxima.front().is_some_and(|x|x.0<i) {maxima.pop_front();}
+        let target=(ceiling/maxima.front().map_or(1e-30,|x|x.1).max(1e-30)).min(1.);
+        g=if target<g {target}else{release*g+(1.-release)*target};reduction=reduction.max(-20.*g.max(1e-30).log10());
+        y[2*i]*=g as f32;y[2*i+1]*=g as f32;
+    }
+    reduction
+}
+/// Deterministic TPDF dither at the final integer conversion, never added to exact digital silence.
+fn quantize(y:&mut [f32],bits:u16) {
+    let scale=((1u32<<(bits-1))-1) as f64;let mut state=0x8ba63e21u32;
+    let mut rand=||{state^=state<<13;state^=state>>17;state^=state<<5;state as f64/u32::MAX as f64};
+    for s in y {if *s==0. {continue}let noise=rand()-rand();*s=(((*s as f64*scale+noise).round()).clamp(-scale-1.,scale)/scale) as f32}
+}
+fn wav(y:&[f32],sr:u32,bits:u16,float:bool)->Result<Vec<u8>,String> {
+    let mut buffer=Cursor::new(Vec::new());
+    {let mut writer=hound::WavWriter::new(&mut buffer,hound::WavSpec{channels:2,sample_rate:sr,bits_per_sample:if float{32}else{bits},sample_format:if float{hound::SampleFormat::Float}else{hound::SampleFormat::Int}}).map_err(|e|e.to_string())?;
+    let scale=((1u32<<(bits-1))-1) as f64;for s in y {if float {writer.write_sample(*s).map_err(|e|e.to_string())?}else{writer.write_sample((*s as f64*scale).round().clamp(-scale-1.,scale) as i32).map_err(|e|e.to_string())?}}writer.finalize().map_err(|e|e.to_string())?;}
+    Ok(buffer.into_inner())
+}
+fn process(mix:&[f32],p:&Profile)->Result<(Vec<f32>,Report),String> {
+    p.validate()?;let input=measure(mix,p.sample_rate)?;let mut y=mix.to_vec();tone(&mut y,p);let compression=compress(&mut y,p);let toned=measure(&y,p.sample_rate)?;
+    let mut warnings=Vec::new();let requested=p.target_lufs.zip(toned.lufs).map_or(0.,|(target,current)|target-current);let boost=requested.clamp(-60.,12.);
+    if requested>12. {warnings.push("gain_limited".into())}
+    for s in &mut y {*s*=gain(boost) as f32}
+    let reduction=if p.limiter {limit(&mut y,p.sample_rate,p.ceiling_db-0.05)}else{0.};
+    let mut safety=0.;
+    // Measure the rendered, dithered signal too. Ceiling wins over loudness target.
+    for _ in 0..3 {
+        let peak=measure(&y,p.sample_rate)?.true_peak_db.unwrap_or(-200.);
+        if peak>p.ceiling_db-0.05 {let db=p.ceiling_db-0.05-peak;safety-=db;for s in &mut y {*s*=gain(db) as f32}}
+        quantize(&mut y,p.bits);
+        if measure(&y,p.sample_rate)?.true_peak_db.unwrap_or(-200.)<=p.ceiling_db {break}
+    }
+    let output=measure(&y,p.sample_rate)?;
+    if output.true_peak_db.is_some_and(|v|v>p.ceiling_db+0.001) {return Err("Kunde inte uppfylla profilens true-peak-gräns".into())}
+    if input.lufs.is_none(){warnings.push("silent_or_short".into())}
+    if reduction>3. {warnings.push("heavy_limiting".into())}
+    if p.target_lufs.zip(output.lufs).is_some_and(|(target,actual)|(actual-target).abs()>1.) {warnings.push("target_not_reached".into())}
+    if p.id=="Vinyl" {
+        warnings.push("vinyl_cutting_review".into());
+        if input.bass_side_ratio>0.25 {warnings.push("wide_bass".into())}
+        if input.treble_ratio>0.20 {warnings.push("bright_treble".into())}
+    }
+    if p.id=="Kassett" {warnings.push("cassette_supplier_review".into())}
+    if p.id=="Spotify" && output.lufs.is_some_and(|v|v> -14.) && p.ceiling_db> -2. {warnings.push("streaming_headroom".into())}
+    Ok((y,Report{profile:p.id.clone(),input,output,requested_lufs:p.target_lufs,gain_db:boost,compressor_reduction_db:compression,limiter_reduction_db:reduction,safety_attenuation_db:safety,warnings}))
+}
+fn validate(r:&Request)->Result<(),String>{
+    if r.title.trim().is_empty() || r.title.len()>200 || r.artist.len()>500 || r.album.len()>500 {return Err("Ange en låttitel (högst 200 byte)".into())}
+    if r.profiles.is_empty() || r.profiles.len()>4 {return Err("Välj 1–4 masteringprofiler".into())}
+    let mut ids=HashSet::new();for p in &r.profiles {p.validate()?;if !ids.insert(&p.id){return Err("Dubblerad masteringprofil".into())}}
+    Ok(())
+}
+fn safe_name(s:&str)->String {
+    let s:String=s.chars().map(|c|if c.is_control()||"/\\:*?\"<>|".contains(c){'_'}else{c}).collect();
+    let s=s.trim().trim_matches('.').to_string();if s.is_empty(){"Låt".into()}else{s}
+}
+fn tagged(y:&[f32],p:&Profile,r:&Request)->Result<Vec<u8>,String> {
+    let bytes=wav(y,p.sample_rate,p.bits,false)?;
+    let changes=crate::metadata::Changes{clear:true,fields:vec![crate::metadata::Field{key:"TrackTitle".into(),value:r.title.clone()},crate::metadata::Field{key:"TrackArtist".into(),value:r.artist.clone()},crate::metadata::Field{key:"AlbumTitle".into(),value:r.album.clone()}]};
+    crate::metadata::apply(FsPath::new(""),bytes,Some(&changes))
+}
+fn zip_entry(zip:&mut zip::ZipWriter<Cursor<Vec<u8>>>,name:&str,bytes:&[u8])->Result<(),String> {
+    zip.start_file(name,zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored)).map_err(|e|e.to_string())?;
+    zip.write_all(bytes).map_err(|e|e.to_string())
+}
+fn render_batch(dir:&FsPath,r:&Request)->Result<Vec<u8>,String> {
+    validate(r)?;let mut zip=zip::ZipWriter::new(Cursor::new(Vec::new()));let mut reports=Vec::new();
+    // Cache only one sample rate at a time to keep batch memory bounded.
+    let mut rate=0;let mut base=Vec::new();
+    for p in &r.profiles {
+        if rate!=p.sample_rate {base=mix(dir,&r.tracks,p.sample_rate)?;rate=p.sample_rate}
+        let (y,report)=process(&base,p)?;
+        zip_entry(&mut zip,&format!("{} - mastered - {}.wav",safe_name(&r.title),p.id),&tagged(&y,p,r)?)?;reports.push(report);
+    }
+    zip_entry(&mut zip,"Mastering-report.json",&serde_json::to_vec_pretty(&json!({"version":1,"request":r,"reports":reports})).map_err(|e|e.to_string())?)?;
+    zip.finish().map(|z|z.into_inner()).map_err(|e|e.to_string())
+}
+pub async fn analyze(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Json<Value>> {
+    let dir=sess(&root,&sid)?;
+    let result=tokio::task::spawn_blocking(move||->Result<Value,String>{validate(&r)?;let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let (_,report)=process(&base,p)?;Ok(json!(report))}).await.map_err(bad)?.map_err(bad)?;
+    Ok(Json(result))
+}
+pub async fn preview(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<([(HeaderName,String);1],Vec<u8>)> {
+    let dir=sess(&root,&sid)?;
+    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{validate(&r)?;let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let(y,_)=process(&base,p)?;wav(&y,p.sample_rate,p.bits,true)}).await.map_err(bad)?.map_err(bad)?;
+    Ok(([(header::CONTENT_TYPE,"audio/wav".into())],bytes))
+}
+async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
+    #[cfg(target_os="windows")]
+    if native {
+        let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title("Spara masteringexport").add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
+        let Some(path)=path else{return Ok(Json(json!({"cancelled":true})).into_response())};
+        std::fs::write(&path,bytes).map_err(bad)?;return Ok(Json(json!({"cancelled":false,"name":path.file_name().unwrap_or_default().to_string_lossy()})).into_response());
+    }
+    let _=(native,extension);
+    // UTF-8 names are provided by the UI for browser downloads; ASCII fallback avoids invalid headers.
+    Ok(([(header::CONTENT_TYPE,if extension=="wav"{"audio/wav"}else{"application/zip"}),(header::CONTENT_DISPOSITION,"attachment; filename=Mastering-export.zip")],bytes).into_response())
+}
+pub async fn batch(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Response> {batch_impl(root,sid,r,false).await}
+pub async fn save_batch(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Response> {batch_impl(root,sid,r,true).await}
+async fn batch_impl(root:std::path::PathBuf,sid:String,r:Request,native:bool)->R<Response> {
+    let dir=sess(&root,&sid)?;let title=safe_name(&r.title);
+    let bytes=tokio::task::spawn_blocking(move||render_batch(&dir,&r)).await.map_err(bad)?.map_err(bad)?;
+    save_or_download(bytes,format!("{title} - mastered.zip"),"zip",native).await
+}
+pub async fn single(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Response> {
+    let dir=sess(&root,&sid)?;validate(&r).map_err(bad)?;
+    let suggested=format!("{} - mastered - {}.wav",safe_name(&r.title),r.profiles[0].id);
+    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let (y,_)=process(&base,p)?;tagged(&y,p,&r)}).await.map_err(bad)?.map_err(bad)?;
+    save_or_download(bytes,suggested,"wav",true).await
+}
+
+#[derive(Deserialize)]
+pub struct SideTrack {pub stem:String,pub side:String,pub gap:f64}
+#[derive(Deserialize)]
+pub struct SideRequest {pub title:String,pub sample_rate:u32,pub bits:u16,pub tracks:Vec<SideTrack>}
+fn side_zip(dir:&FsPath,r:&SideRequest)->Result<Vec<u8>,String> {
+    if ![44100,48000,88200,96000].contains(&r.sample_rate)||![16,24].contains(&r.bits)||r.tracks.is_empty()||r.tracks.len()>100 {return Err("Ogiltiga sidinställningar".into())}
+    let mut seen=HashSet::new();for t in &r.tracks {if !["A","B"].contains(&t.side.as_str())||!t.gap.is_finite()||!(0. ..=30.).contains(&t.gap)||fname(&t.stem)!=t.stem||!crate::is_audio(&t.stem)||!seen.insert(&t.stem){return Err("Ogiltig låt, sida eller mellanrum".into())}}
+    let mut z=zip::ZipWriter::new(Cursor::new(Vec::new()));let mut sides=Vec::new();
+    for side in ["A","B"] {
+        let mut y=Vec::new();let mut cue=String::new();let mut songs=Vec::new();
+        for t in r.tracks.iter().filter(|t|t.side==side) {
+            if !y.is_empty(){y.resize(y.len()+(t.gap*r.sample_rate as f64).round() as usize*2,0.)}
+            let start=y.len() as f64/2./r.sample_rate as f64;let (audio,rate,ch)=decode(&dir.join(&t.stem))?;let audio=stereo_resample(&audio,rate,ch,r.sample_rate)?;
+            if y.len()+audio.len()>r.sample_rate as usize*60*60*2{return Err("En sida får vara högst 60 minuter".into())}
+            cue.push_str(&format!("{:02}:{:06.3}\t{}\n",(start/60.).floor() as u32,start%60.,t.stem));songs.push(json!({"file":t.stem,"start_seconds":start,"duration_seconds":audio.len() as f64/2./r.sample_rate as f64}));y.extend(audio);
+        }
+        if y.is_empty(){continue}
+        let before=measure(&y,r.sample_rate)?;let attenuation=(-1.-before.true_peak_db.unwrap_or(-200.)).min(0.);
+        for s in &mut y {*s*=gain(attenuation) as f32}quantize(&mut y,r.bits);
+        zip_entry(&mut z,&format!("{} - Side {side}.wav",safe_name(&r.title)),&wav(&y,r.sample_rate,r.bits,false)?)?;
+        zip_entry(&mut z,&format!("Side {side} - tracklist.txt"),cue.as_bytes())?;
+        sides.push(json!({"side":side,"tracks":songs,"metrics":measure(&y,r.sample_rate)?,"safety_attenuation_db":-attenuation}));
+    }
+    zip_entry(&mut z,"Side-report.json",&serde_json::to_vec_pretty(&json!({"sides":sides,"sample_rate":r.sample_rate,"bits":r.bits})).map_err(|e|e.to_string())?)?;
+    z.finish().map(|z|z.into_inner()).map_err(|e|e.to_string())
+}
+pub async fn sides(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<SideRequest>)->R<Response> {
+    let dir=sess(&root,&sid)?;let name=format!("{} - sides.zip",safe_name(&r.title));
+    let bytes=tokio::task::spawn_blocking(move||side_zip(&dir,&r)).await.map_err(bad)?.map_err(bad)?;save_or_download(bytes,name,"zip",true).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn profile(id:&str)->Profile {Profile{id:id.into(),sample_rate:44100,bits:if id=="CD"{16}else{24},target_lufs:Some(-14.),ceiling_db:-1.,bass_db:0.,mid_db:0.,treble_db:0.,compression:15.,mono_bass_hz:0.,highpass_hz:0.,limiter:true}}
+    fn sine(sr:u32,seconds:f64,frequency:f64,amplitude:f64)->Vec<f32>{(0..(sr as f64*seconds) as usize).flat_map(|i|{let v=(amplitude*(2.*PI*frequency*i as f64/sr as f64).sin()) as f32;[v,v]}).collect()}
+    #[test]fn loudness_reference_and_silence(){let m=measure(&sine(48000,5.,1000.,0.1),48000).unwrap();assert!((m.lufs.unwrap()+20.).abs()<0.4);assert!((m.true_peak_db.unwrap()+20.).abs()<0.1);assert!(measure(&vec![0.;48000],48000).unwrap().lufs.is_none());}
+    #[test]fn profiles_reach_target_and_respect_true_peak(){let source=sine(44100,4.,1000.,0.05);for id in ["Spotify","CD","Vinyl","Kassett"]{let p=profile(id);let(y,r)=process(&source,&p).unwrap();assert_eq!(y.len(),source.len());assert!((r.output.lufs.unwrap()+14.).abs()<0.3);assert!(r.output.true_peak_db.unwrap()<=p.ceiling_db);let data=wav(&y,p.sample_rate,p.bits,false).unwrap();let reader=hound::WavReader::new(Cursor::new(data)).unwrap();assert_eq!(reader.spec().bits_per_sample,p.bits);assert_eq!(reader.spec().sample_rate,p.sample_rate);}}
+    #[test]fn limiter_handles_impulses_and_high_frequency(){let mut y=sine(44100,3.,18000.,1.4);y[1000]=5.;y[1001]=-4.;let p=profile("Spotify");let(_,r)=process(&y,&p).unwrap();assert!(r.output.true_peak_db.unwrap()<=-1.);assert!(r.limiter_reduction_db>0.);}
+    #[test]fn resampler_keeps_duration_and_rejects_aliases(){let source=sine(48000,1.,1000.,0.5);let out=stereo_resample(&source,48000,2,44100).unwrap();assert_eq!(out.len(),88200);assert!((measure(&source,48000).unwrap().lufs.unwrap()-measure(&out,44100).unwrap().lufs.unwrap()).abs()<0.1);let high=stereo_resample(&sine(96000,1.,30000.,0.5),96000,2,44100).unwrap();let rms=(high.iter().skip(1000).take(80000).map(|v|(*v as f64).powi(2)).sum::<f64>()/80000.).sqrt();assert!(rms<0.01);}
+    #[test]fn mono_bass_reduces_antiphase_and_compressor_preserves_stereo(){let mut y=sine(44100,2.,40.,0.5);for f in y.chunks_exact_mut(2){f[1]=-f[0]}let before=measure(&y,44100).unwrap();let mut p=profile("Vinyl");p.mono_bass_hz=150.;tone(&mut y,&p);let power=y.iter().map(|v|(*v as f64).powi(2)).sum::<f64>();let original=sine(44100,2.,40.,0.5).iter().map(|v|(*v as f64).powi(2)).sum::<f64>();assert!(power/original<0.1);assert!(before.bass_side_ratio>0.9);let mut stereo=sine(44100,2.,1000.,0.8);compress(&mut stereo,&p);assert!(stereo.chunks_exact(2).all(|f|f[0]==f[1]));}
+    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
+    #[test]fn invalid_settings_rejected(){let mut p=profile("CD");p.bits=24;assert!(p.validate().is_err());p=profile("Vinyl");p.ceiling_db=f64::NAN;assert!(p.validate().is_err());assert_eq!(safe_name("../bad/name"),"_bad_name");}
+}
