@@ -122,12 +122,13 @@ function editedBuffer(name){
   const channels=ops.some(e=>e.kind==='pan')?2:b.numberOfChannels;
   const buffer=ctx.createBuffer(channels,b.length,b.sampleRate),sr=b.sampleRate;
   for(let c=0;c<channels;c++)buffer.getChannelData(c).set(b.getChannelData(Math.min(c,b.numberOfChannels-1)));
-  for(const [editIndex,e] of ops.entries()){
+  let panBase=null;
+  for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter(e=>e.kind==='pan')]){
     const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
     if(e.kind==='pan'){
       const left=buffer.getChannelData(0),right=buffer.getChannelData(1),edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));
-      const later=ops.slice(editIndex+1).filter(e=>e.kind==='pan').map(e=>[Math.round(e.start*sr),Math.round(e.end*sr)]);
-      for(let i=0;i<n;i++){if(later.some(([start,end])=>a+i>=start&&a+i<end))continue;let t=n>1?i/(n-1):0;if(e.pan_cycles)t=(1-Math.cos(2*Math.PI*e.pan_cycles*t))/2;const p=e.pan_from+(e.pan_to-e.pan_from)*t,w=edge?Math.min(i/edge,(n-1-i)/edge,1):1,j=a+i,l=left[j],r=right[j],[pl,pr]=panFrame(l,r,p,b.numberOfChannels===1);left[j]=l+(pl-l)*w;right[j]=r+(pr-r)*w}
+      if(!panBase)panBase=[left.slice(),right.slice()];
+      for(let i=0;i<n;i++){let t=n>1?i/(n-1):0;if(e.pan_cycles)t=(1-Math.cos(2*Math.PI*e.pan_cycles*t))/2;const p=e.pan_from+(e.pan_to-e.pan_from)*t,w=edge?Math.min(i/edge,(n-1-i)/edge,1):1,j=a+i,l=left[j],r=right[j],[pl,pr]=panFrame(panBase[0][j],panBase[1][j],p,b.numberOfChannels===1);left[j]=l+(pl-l)*w;right[j]=r+(pr-r)*w}
     }else for(let c=0;c<channels;c++){
       const y=buffer.getChannelData(c);
       if(e.kind==='fadein')for(let i=0;i<n;i++)y[a+i]*=i/n;

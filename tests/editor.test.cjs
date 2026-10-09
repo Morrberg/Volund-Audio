@@ -60,6 +60,7 @@ assert.ok(await run(`editedBuffer('Synth.wav').getChannelData(0)[220]>editedBuff
 assert.ok(await run(`editedBuffer('Synth.wav').getChannelData(1)[779]>editedBuffer('Synth.wav').getChannelData(0)[779]`));
 await run(`document.querySelector('#panCycles').value=2;addPan('alternate');`);assert.equal(await run('edits.at(-1).pan_cycles'),2);
 await run(`stashTrack();const panManifest=JSON.parse(JSON.stringify(tracks));tracks=panManifest;vocal=null;setVocal('Synth.wav');`);assert.equal(await run('edits.at(-1).kind'),'pan');
+await run(`const beforeRemove=edits.length;document.querySelector('#panEdits').children[0].children[1].onclick();`);assert.equal(await run('edits.length'),await run('beforeRemove-1'));await run('undo()');assert.equal(await run('edits.length'),await run('beforeRemove'));
 await run(`bufs['Mono.wav']=ctx.createBuffer(1,1000,1000);bufs['Mono.wav'].getChannelData(0).fill(.2);names.push('Mono.wav');setVocal('Mono.wav');sel=[.2,.8];addPan('right');`);
 assert.equal(await run(`editedBuffer('Mono.wav').numberOfChannels`),2);assert.equal(await run(`editedBuffer('Mono.wav').getChannelData(0)[500]`),0);
 assert.ok(Math.abs(await run(`editedBuffer('Mono.wav').getChannelData(1)[500]`)-.2*Math.SQRT2)<1e-6);

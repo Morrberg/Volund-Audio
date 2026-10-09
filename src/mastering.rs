@@ -118,20 +118,20 @@ fn pan_frame(l:f64,r:f64,p:f64,mono:bool)->(f64,f64) {
 fn apply_edits(y: &mut [f32], sr: u32, ch: usize, mono: bool, edits: &[Edit]) -> Result<(), String> {
     if ch==0 {return Err("Ljudet saknar kanaler".into())}
     let frames=y.len()/ch;
-    for (edit_index,e) in edits.iter().enumerate() {
+    let mut pan_base:Option<Vec<f32>>=None;
+    for e in edits.iter().filter(|e|e.kind!="pan").chain(edits.iter().filter(|e|e.kind=="pan")) {
         if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
         if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
         if e.kind=="pan" {
             let edge=((e.fade as f64*sr as f64).round() as usize).min((n-1)/2);
-            let later:Vec<(usize,usize)>=edits[edit_index+1..].iter().filter(|e|e.kind=="pan").map(|e|(((e.start as f64*sr as f64).round() as usize).min(frames),((e.end as f64*sr as f64).round() as usize).min(frames))).collect();
+            let base=pan_base.get_or_insert_with(||y.to_vec());
             for i in 0..n {
-                if later.iter().any(|(start,end)|a+i>=*start&&a+i<*end) {continue}
                 let t=if n>1 {i as f64/(n-1) as f64}else{0.};
                 let t=if e.pan_cycles>0 {(1.-(2.*PI*e.pan_cycles as f64*t).cos())*0.5}else{t};
                 let p=e.pan_from as f64+(e.pan_to as f64-e.pan_from as f64)*t;
                 let weight=if edge>0 {(i as f64/edge as f64).min((n-1-i) as f64/edge as f64).min(1.)}else{1.};
-                let j=(a+i)*2;let (l,r)=(y[j] as f64,y[j+1] as f64);let (pl,pr)=pan_frame(l,r,p,mono);
+                let j=(a+i)*2;let (l,r)=(y[j] as f64,y[j+1] as f64);let (pl,pr)=pan_frame(base[j] as f64,base[j+1] as f64,p,mono);
                 y[j]=(l+(pl-l)*weight) as f32;y[j+1]=(r+(pr-r)*weight) as f32;
             }
             continue;
