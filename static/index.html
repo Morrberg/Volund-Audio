@@ -9,9 +9,9 @@ h1{font-size:20px;margin:0 0 12px}
 .bar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;align-items:center}
 button,select{background:var(--card);color:var(--fg);border:1px solid #8884;border-radius:6px;padding:6px 10px;cursor:pointer}
 button.p{background:var(--ac);color:#fff;border:0}
-#wf{width:100%;height:200px;background:var(--card);border-radius:8px;cursor:crosshair;display:block}
+.wave{width:100%;height:110px;background:var(--card);border-radius:8px;cursor:crosshair;display:block}
 .sg{background:var(--card);padding:6px 8px;border-radius:6px;margin:4px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-small{opacity:.7}
+.track{margin:10px 0;border:2px solid transparent;border-radius:8px;padding:6px}.track.active{border-color:var(--ac)}.track.active .wave{height:170px}.track header{margin-bottom:5px}small{opacity:.7}
 </style></head><body>
 <h1>Vocal Cleaner</h1>
 <div class="bar">
@@ -22,7 +22,8 @@ small{opacity:.7}
   <button id="projectSave" onclick="saveProject()" disabled>Spara projekt…</button>
   <span id="saveStatus" role="status" aria-live="polite">Öppna ljudfiler för att börja.</span>
 </div>
-<canvas id="wf"></canvas>
+<small id="memory"></small>
+<div id="tracks"><canvas class="wave" id="wf"></canvas></div>
 <small>Dra = markera · klick = sätt position · hjul = zooma · Skift+hjul = panorera</small>
 <div class="bar">
   <button onclick="playBtn()" id="pp">▶ Spela</button>
@@ -38,6 +39,7 @@ small{opacity:.7}
 <div id="sg"></div>
 <script>
 const $=s=>document.querySelector(s), ctx=new AudioContext();
+const trackCanvases=new Map(),peakCache=new Map(),editedBuffers=new Map();
 let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
@@ -50,33 +52,42 @@ $("#f").onchange=async e=>{
   const j=await r.json();sid=j.sid;names=j.stems;bufs={};vocal=null;tracks=j.project?.tracks||{};projectSaved=projectFingerprint();
   for(const n of names)bufs[n]=await ctx.decodeAudioData(await(await fetch(`/api/stem/${sid}/${encodeURIComponent(n)}`)).arrayBuffer());
   const s=$("#vsel");s.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
-  s.value=j.vocal||names[0];setVocal(s.value);
+  editedBuffers.clear();buildTracks();s.value=j.vocal||names[0];setVocal(s.value);
+  $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
 function stashTrack(){if(vocal)tracks[vocal]={edits:edits.slice(),redo:redo.slice(),savedEdits};}
 function projectFingerprint(){return JSON.stringify(Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length).map(n=>[n,tracks[n].edits]))}
 function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved}
 function setVocal(n){
-  stashTrack();stop();vocal=n;
+  const switching=!!vocal;stashTrack();stop();vocal=n;
   const state=tracks[n]||{edits:[],redo:[],savedEdits:"[]"};
   edits=state.edits.slice();redo=(state.redo||[]).slice();savedEdits=state.savedEdits||"[]";
-  sel=null;sugg=[];view={a:0,b:bufs[n].duration};rebuild();renderSugg();draw();saveState();
+  sel=null;sugg=[];if(!switching)view={a:0,b:projectDuration()};
+  wf=trackCanvases.get(n)||wf;$("#vsel").value=n;
+  for(const [name,c] of trackCanvases)c.parentElement.classList.toggle("active",name===n);
+  rebuild();renderSugg();draw();saveState();
 }
 
-function rebuild(){
-  const b=bufs[vocal],sr=b.sampleRate;edBuf=ctx.createBuffer(b.numberOfChannels,b.length,sr);
+function editedBuffer(name){
+  const ops=name===vocal?edits:tracks[name]?.edits||[],b=bufs[name],key=JSON.stringify(ops);
+  if(!ops.length){editedBuffers.delete(name);return b}
+  const cached=editedBuffers.get(name);if(cached?.key===key&&cached.original===b)return cached.buffer;
+  const buffer=ctx.createBuffer(b.numberOfChannels,b.length,b.sampleRate),sr=b.sampleRate;
   for(let c=0;c<b.numberOfChannels;c++){
-    const y=edBuf.getChannelData(c);y.set(b.getChannelData(c));
-    for(const e of edits){
+    const y=buffer.getChannelData(c);y.set(b.getChannelData(c));
+    for(const e of ops){
       const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
-      if(e.kind=="fadein")for(let i=0;i<n;i++)y[a+i]*=i/n;
-      else if(e.kind=="fadeout")for(let i=0;i<n;i++)y[a+i]*=1-i/n;
+      if(e.kind==="fadein")for(let i=0;i<n;i++)y[a+i]*=i/n;
+      else if(e.kind==="fadeout")for(let i=0;i<n;i++)y[a+i]*=1-i/n;
       else{const f=Math.min(Math.round(e.fade*sr),a,b.length-z);
-        for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}
-        y.fill(0,a,z)}
+        for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}y.fill(0,a,z)
+      }
     }
   }
+  editedBuffers.set(name,{key,original:b,buffer});return buffer;
 }
+function rebuild(){edBuf=editedBuffer(vocal)}
 function changed(){saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
 function addEdit(kind,s=sel){if(!s||s[1]-s[0]<0.005)return;edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
 function undo(){if(edits.length){redo.push(edits.pop());changed()}}
@@ -89,7 +100,7 @@ function pos(){
   return Math.min(startOff+ctx.currentTime-startT,bufs[vocal].duration)}
 function play(off,dur){
   stop(true);ctx.resume();const lp=loop&&sel&&dur===undefined;if(lp)off=sel[0];
-  srcs=names.map(n=>{const s=ctx.createBufferSource();s.buffer=(n==vocal&&useEd)?edBuf:bufs[n];s.connect(ctx.destination);
+  srcs=names.filter(n=>off<bufs[n].duration).map(n=>{const s=ctx.createBufferSource();s.buffer=useEd?editedBuffer(n):bufs[n];s.connect(ctx.destination);
     if(lp){s.loop=true;s.loopStart=sel[0];s.loopEnd=sel[1]}return s});
   srcs.forEach(s=>dur===undefined?s.start(0,off):s.start(0,off,dur));
   startT=ctx.currentTime;startOff=off;playing=true;tick()}
@@ -102,29 +113,71 @@ function selPlay(){if(sel)play(sel[0],sel[1]-sel[0])}
 function tick(){draw();if(playing&&pos()<bufs[vocal].duration-0.01)requestAnimationFrame(tick);else if(playing&&!(loop&&sel))stop()}
 
 // ---- vågform
+function projectDuration(){return Math.max(0,...Object.values(bufs).map(b=>b.duration))}
+function buildTracks(){
+  trackCanvases.clear();peakCache.clear();$("#tracks").replaceChildren();
+  for(const n of names){
+    const row=document.createElement("section");row.className="track";
+    const label=document.createElement("header"),button=document.createElement("button");
+    button.textContent=n;button.onclick=()=>setVocal(n);label.append(button);row.append(label);
+    const c=document.createElement("canvas");c.className="wave";c.title="Klicka eller dra för att redigera detta spår";
+    c.onmousedown=e=>{if(n!==vocal)setVocal(n);wf=c;mouseDown(e)};
+    c.onmousemove=mouseMove;c.onwheel=wheel;row.append(c);$("#tracks").append(row);trackCanvases.set(n,c);
+  }
+}
+function sampleGain(t,frame,sr,length){
+  let gain=1;
+  for(const e of t){
+    const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
+    if(e.kind==="fadein"){if(frame>=a&&frame<z)gain*=(frame-a)/n}
+    else if(e.kind==="fadeout"){if(frame>=a&&frame<z)gain*=1-(frame-a)/n}
+    else{const f=Math.min(Math.round(e.fade*sr),a,length-z);
+      if(frame>=a&&frame<z)gain=0;
+      else if(f&&frame>=a-f&&frame<a)gain*=1-(frame-a+f)/f;
+      else if(f&&frame>=z&&frame<z+f)gain*=(frame-z)/f;
+    }
+  }
+  return gain;
+}
 function draw(){
-  const c=$("#wf"),g=c.getContext("2d"),W=c.width=c.clientWidth,H=c.height=c.clientHeight;
-  g.clearRect(0,0,W,H);if(!vocal)return;
-  const buf=useEd?edBuf:bufs[vocal],d=buf.getChannelData(0),sr=buf.sampleRate,span=view.b-view.a,x=t=>(t-view.a)/span*W;
-  sugg.forEach(s=>{g.fillStyle=s.state=="avvisad"?"#8883":s.state=="godkänd"?"#2a62":"#fb34";g.fillRect(x(s.start),0,x(s.end)-x(s.start),H)});
-  if(sel){g.fillStyle="#4af5";g.fillRect(x(sel[0]),0,x(sel[1])-x(sel[0]),H)}
-  g.fillStyle="#6a9cff";const step=Math.max(1,Math.floor(span*sr/W/48));
-  for(let px=0;px<W;px++){
-    const i0=Math.floor((view.a+px/W*span)*sr),i1=Math.floor((view.a+(px+1)/W*span)*sr);let mn=0,mx=0;
-    for(let i=i0;i<i1&&i<d.length;i+=step){const v=d[i];if(v<mn)mn=v;if(v>mx)mx=v}
-    g.fillRect(px,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}
-  g.fillStyle="#f55";g.fillRect(x(pos()),0,2,H);
-  g.fillStyle="#888";g.font="11px sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12)}
-const wf=$("#wf"),tAt=e=>view.a+e.offsetX/wf.clientWidth*(view.b-view.a);
+  if(!vocal)return;
+  const canvases=trackCanvases.size?[...trackCanvases]:[[vocal,wf]];
+  for(const [name,c] of canvases){
+    const g=c.getContext("2d"),W=c.width=c.clientWidth,H=c.height=c.clientHeight;
+    g.clearRect(0,0,W,H);
+    const buf=bufs[name],d=buf.getChannelData(0),sr=buf.sampleRate,span=view.b-view.a,x=t=>(t-view.a)/span*W;
+    const ops=useEd?(name===vocal?edits:tracks[name]?.edits||[]):[];
+    const key=JSON.stringify([view.a,view.b,W,ops]);let cache=peakCache.get(name);
+    if(!cache||cache.key!==key||cache.buf!==buf){
+      const peaks=new Float32Array(W*2),step=Math.max(1,Math.floor(span*sr/W/48));
+      for(let px=0;px<W;px++){
+        const i0=Math.floor((view.a+px/W*span)*sr),i1=Math.floor((view.a+(px+1)/W*span)*sr);let mn=0,mx=0;
+        for(let i=i0;i<i1&&i<d.length;i+=step){const v=d[i]*sampleGain(ops,i,sr,buf.length);if(v<mn)mn=v;if(v>mx)mx=v}
+        peaks[px*2]=mn;peaks[px*2+1]=mx;
+      }
+      cache={key,buf,peaks};peakCache.set(name,cache);
+    }
+    if(name===vocal){
+      sugg.forEach(s=>{g.fillStyle=s.state==="avvisad"?"#8883":s.state==="godkänd"?"#2a62":"#fb34";g.fillRect(x(s.start),0,x(s.end)-x(s.start),H)});
+      if(sel){g.fillStyle="#4af5";g.fillRect(x(sel[0]),0,x(sel[1])-x(sel[0]),H)}
+    }
+    g.fillStyle=name===vocal?"#6a9cff":"#8393ad";
+    for(let px=0;px<W;px++){const mn=cache.peaks[px*2],mx=cache.peaks[px*2+1];g.fillRect(px,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}
+    g.fillStyle="#f55";g.fillRect(x(pos()),0,2,H);
+    g.fillStyle="#888";g.font="11px sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12);
+  }
+}
+let wf=$("#wf");const tAt=e=>view.a+e.offsetX/(e.currentTarget||wf).clientWidth*(view.b-view.a);
 let dragA=null,moved=false;
-wf.onmousedown=e=>{if(!vocal)return;dragA=tAt(e);moved=false};
-wf.onmousemove=e=>{if(dragA===null)return;moved=true;const t=tAt(e);sel=[Math.max(0,Math.min(dragA,t)),Math.min(bufs[vocal].duration,Math.max(dragA,t))];draw()};
+function mouseDown(e){if(!vocal)return;dragA=tAt(e);moved=false};
+function mouseMove(e){if(dragA===null)return;moved=true;const t=tAt(e);sel=[Math.max(0,Math.min(dragA,t)),Math.min(bufs[vocal].duration,Math.max(dragA,t))];draw()};
 window.onmouseup=()=>{if(dragA!==null&&!moved){sel=null;startOff=dragA;if(playing)play(dragA)}dragA=null;draw()};
-wf.onwheel=e=>{e.preventDefault();if(!vocal)return;const D=bufs[vocal].duration,span=view.b-view.a;
+function wheel(e){e.preventDefault();if(!vocal)return;const D=projectDuration(),span=view.b-view.a;
   if(e.shiftKey){const s=span*0.1*Math.sign(e.deltaY);view.a=Math.max(0,Math.min(D-span,view.a+s));view.b=view.a+span}
   else{const t=tAt(e),k=e.deltaY>0?1.25:0.8,ns=Math.min(D,Math.max(0.05,span*k)),r=(t-view.a)/span;
     view.a=Math.max(0,Math.min(D-ns,t-r*ns));view.b=view.a+ns}
   draw()};
+wf.onmousedown=mouseDown;wf.onmousemove=mouseMove;wf.onwheel=wheel;
 addEventListener("resize",draw);
 
 // ---- förslag

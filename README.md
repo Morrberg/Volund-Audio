@@ -10,7 +10,7 @@ Gränssnittet använder en inbäddad webbvy; ljudbehandlingen körs lokalt i Rus
 Inget ljud skickas till en molntjänst. På andra operativsystem öppnas webbläsaren.
 
 1. Öppna Sunos ZIP med alla stems, eller WAV/MP3/FLAC-filer.
-2. Välj sångspår. Markera, tysta, tona in/ut och lyssna på resultatet.
+2. Alla stems visas samtidigt på en gemensam tidslinje. Klicka på ett spår för att redigera det. Zoom och panorering gäller alla spår. Välj sångspår. Markera, tysta, tona in/ut och lyssna på resultatet.
 3. Byt mellan stems: varje spår behåller sina redigeringar och sin ångrahistorik.
 4. **Spara sångspår…** (Ctrl+S) sparar det valda redigerade spåret som WAV,
    32-bit float med originalets samplingsfrekvens och antal kanaler.
@@ -32,6 +32,6 @@ Windows-resultat: `target/release/vocal-cleaner.exe`.
 GitHub Actions bygger och testar Windows-versionen och laddar upp exe som artifact.
 `node tests/editor.test.cjs` testar stembyte, ångra och projektets sparstatus.
 
-`prototype-python/` är den äldre prototypen; förbättringarna gäller Rust-appen.
+Vågformernas toppvärden cachas. Extra minne för själva flerspårsvyn är litet; avkodat ljud dominerar minnesåtgången. Spår med redigeringar får extra ljudbuffertar för förhandslyssning. Spår utan redigeringar återanvänder originalbufferten.
 
 MIT-licens.

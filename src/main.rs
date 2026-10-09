@@ -254,9 +254,9 @@ fn main() {
             .build(&event_loop).expect("kan inte skapa programfönster");
         let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ipc_dirty = dirty.clone();
-        let _webview = wry::WebViewBuilder::new().with_url(&url)
+        let _webview = wry::WebViewBuilder::new(&window).with_url(&url)
             .with_ipc_handler(move |request| { ipc_dirty.store(request.body() == "dirty", std::sync::atomic::Ordering::Relaxed); })
-            .build(&window).expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
+            .build().expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
