@@ -103,13 +103,14 @@ function projectFingerprint(){return JSON.stringify({tracks:Object.keys(tracks).
 function audioFingerprint(){return tracks[vocal]?.metadata?JSON.stringify({edits,metadata:tracks[vocal].metadata}):JSON.stringify(edits)}
 function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved||sideDirty()}
 function setVocal(n){
-  const switching=!!vocal;stashTrack();stop();vocal=n;
+  const switching=!!vocal;stashTrack();
+  const row=trackCanvases.get(n)?.parentElement;if(row)row.append(editorPanel);
+  stop();vocal=n;
   const state=tracks[n]||{edits:[],redo:[],savedEdits:"[]"};
   edits=state.edits.slice();panUndo=(state.panUndo||[]).map(ops=>ops.slice());redo=(state.redo||[]).slice();savedEdits=state.savedEdits||"[]";
   sel=null;sugg=[];if(!switching)view={a:0,b:projectDuration()};
   wf=trackCanvases.get(n)||wf;$("#vsel").value=n;
   for(const [name,c] of trackCanvases)c.parentElement.classList.toggle("active",name===n);
-  const row=trackCanvases.get(n)?.parentElement;if(row)row.append(editorPanel);
   editorPanel.hidden=false;
   $("#activeName").textContent="Aktivt spår: "+n;
   renderMetadata();rebuild();renderSugg();draw();saveState();

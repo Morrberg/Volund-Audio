@@ -65,5 +65,8 @@ await run(`bufs['Mono.wav']=ctx.createBuffer(1,1000,1000);bufs['Mono.wav'].getCh
 assert.equal(await run(`editedBuffer('Mono.wav').numberOfChannels`),2);assert.equal(await run(`editedBuffer('Mono.wav').getChannelData(0)[500]`),0);
 assert.ok(Math.abs(await run(`editedBuffer('Mono.wav').getChannelData(1)[500]`)-.2*Math.SQRT2)<1e-6);
 await run(`sideTracks=[{stem:'Song.wav',side:'A',gap:2}];sideDurations={'Song.wav':60};document.querySelector('#sideTitle').value='Album';document.querySelector('#sideRate').value='44100';document.querySelector('#sideBits').value='24';sideSaved=JSON.stringify(sideRequest());sideTracks[0].side='B';`);assert.equal(await run('sideDirty()'),true);
+// Rebuild detaches the active editor. Real querySelector cannot find its controls until reattached.
+await run(`setVocal('Synth.wav');buildTracks();const realQuery=document.querySelector;let missingDetachedControls=false;document.querySelector=s=>{if(s==='#pp'&&!editorPanel.parentElement?.parentElement){missingDetachedControls=true;return null}return realQuery(s)};setVocal('Vocals.wav');document.querySelector=realQuery;`);
+assert.equal(await run('missingDetachedControls'),false);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});
