@@ -1,48 +1,37 @@
-# Vocal Cleaner
+# Vocal Cleaner 0.2
 
-Lokalt, gratis verktyg som hjälper dig hitta och tysta oönskade vokala inslag
-("Woooow", "Yeah!", skrik m.m.) i sångspåret från AI-genererad musik (t.ex. Suno stems).
+Lokalt verktyg för att tysta oönskade vokala inslag i Suno-stems.
 
-- Körs lokalt på Windows 11, inga molntjänster, ingen GPU krävs.
-- En enda `.exe` (Rust). Gränssnittet öppnas i din webbläsare via en lokal server.
-- Icke-destruktivt: originalfiler skrivs aldrig över, export ger en ny fil.
-- Systemet **föreslår** redigeringar. Inget tas bort utan ditt godkännande.
+## Windows
 
-## Status
+Dubbelklicka på `vocal-cleaner.exe`. Appen öppnar ett eget fönster och stängs när
+fönstret stängs. Microsoft Edge WebView2 Runtime behöver finnas installerad.
+Gränssnittet använder en inbäddad webbvy; ljudbehandlingen körs lokalt i Rust.
+Inget ljud skickas till en molntjänst. På andra operativsystem öppnas webbläsaren.
 
-Tidig version. Detektionen är heuristisk (energi + kontext: korta, isolerade vokala
-block nära låtens början/slut), inte en AI-modell. Säkerhetsprocenten är inte kalibrerad.
-Planerat: klassificering med öppna ljudmodeller, FLAC/MP3-export, eget fönster.
+1. Öppna Sunos ZIP med alla stems, eller WAV/MP3/FLAC-filer.
+2. Alla stems visas samtidigt på en gemensam tidslinje. Klicka på ett spår för att redigera det. Zoom och panorering gäller alla spår. Välj sångspår. Markera, tysta, tona in/ut och lyssna på resultatet.
+3. Byt mellan stems: varje spår behåller sina redigeringar och sin ångrahistorik.
+4. **Spara sångspår…** (Ctrl+S) sparar det valda redigerade spåret som WAV,
+   32-bit float med originalets samplingsfrekvens och antal kanaler.
+   Välj en ny fil, exempelvis `Lead Vocals_cleaned.wav`.
+5. **Spara projekt…** sparar alla importerade stems, redigeringar och ångrahistorik
+   i en `.vcleaner`-fil. Öppna den via samma filväljare för att fortsätta senare.
 
-## Använda
+Att spara WAV sparar inte hela projektet. Projektfiler kan bli stora eftersom
+originalens ljuddata ingår. Avbruten spardialog behåller redigeringarna i appen.
+Programfönstret varnar vid osparade projektändringar. Stängning sparar inte automatiskt.
 
-1. Hämta `vocal-cleaner.exe` under **Releases** (eller **Actions → senaste bygget → Artifacts**).
-2. Dubbelklicka. Webbläsaren öppnas.
-3. Ladda upp ett vocals-stem, flera stems eller en ZIP (WAV/MP3/FLAC).
-4. Klicka **Hitta förslag**, lyssna, **Godkänn** eller **Avvisa**. Markera även manuellt
-   i vågformen (Tysta, Fade-in, Fade-out, Ångra/Gör om, A/B mot original).
-5. **Exportera sångspår**. Resultatet blir en ny WAV (32-bit float) med samma
-   samplingsfrekvens och kanaler. Lägg tillbaka den i din DAW tillsammans med övriga stems.
+Dra = markera, klick = position, hjul = zooma, Skift+hjul = panorera.
+Detektionen använder energi och kontextregler, inte en AI-modell.
 
-Reglage: dra = markera, klick = position, mushjul = zooma, Skift+hjul = panorera.
+## Bygga
 
-## Bygga själv
+Installera Rust och kör `cargo build --release`.
+Windows-resultat: `target/release/vocal-cleaner.exe`.
+GitHub Actions bygger och testar Windows-versionen och laddar upp exe som artifact.
+`node tests/editor.test.cjs` testar stembyte, ångra och projektets sparstatus.
 
-Installera Rust (https://rustup.rs), sedan:
+Vågformernas toppvärden cachas. Extra minne för själva flerspårsvyn är litet; avkodat ljud dominerar minnesåtgången. Spår med redigeringar får extra ljudbuffertar för förhandslyssning. Spår utan redigeringar återanvänder originalbufferten.
 
-```
-cargo build --release
-```
-
-Resultat: `target/release/vocal-cleaner.exe`. Kör `cargo generate-lockfile` eller bygg en
-gång och committa `Cargo.lock`. Att tagga `v0.1.0` och pusha bygger och publicerar
-en release automatiskt via GitHub Actions.
-
-## Mappar
-
-- `src/main.rs`, `static/index.html`: Rust-appen (UI inbäddat i exe-filen).
-- `prototype-python/`: tidigare Python-prototyp med samma UI (`start.bat`).
-
-## Licens
-
-MIT. Beroenden (axum, symphonia, hound, zip m.fl.) har egna öppna licenser.
+MIT-licens.

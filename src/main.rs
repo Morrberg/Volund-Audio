@@ -1,4 +1,5 @@
-//! Vocal Cleaner (Rust) - en enda exe. Kör lokalt, öppnar gränssnittet i webbläsaren.
+//! Vocal Cleaner: eget Windows-fönster, lokal ljudbehandling.
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
@@ -11,7 +12,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     fs,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Write},
     path::{Path as FsPath, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -72,15 +73,19 @@ async fn upload(State(root): State<PathBuf>, mut mp: Multipart) -> R<Json<Value>
     let sid = format!("{:x}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis());
     let d = root.join(&sid);
     fs::create_dir_all(&d).map_err(bad)?;
+    let mut project = Value::Null;
     while let Some(f) = mp.next_field().await.map_err(bad)? {
         let name = fname(f.file_name().unwrap_or(""));
         let raw = f.bytes().await.map_err(bad)?;
-        if ext(&name) == "zip" {
+        if matches!(ext(&name).as_str(), "zip" | "vcleaner") {
             let mut z = zip::ZipArchive::new(Cursor::new(raw)).map_err(bad)?;
             for i in 0..z.len() {
                 let mut e = z.by_index(i).map_err(bad)?;
                 let n = fname(e.name());
-                if is_audio(&n) {
+                if n == "project.json" {
+                    let mut b = String::new();e.read_to_string(&mut b).map_err(bad)?;
+                    project = serde_json::from_str(&b).map_err(bad)?;
+                } else if is_audio(&n) {
                     let mut b = Vec::new();
                     e.read_to_end(&mut b).map_err(bad)?;
                     fs::write(d.join(&n), b).map_err(bad)?;
@@ -95,7 +100,7 @@ async fn upload(State(root): State<PathBuf>, mut mp: Multipart) -> R<Json<Value>
     stems.sort();
     if stems.is_empty() { return Err(bad("Inga ljudfiler hittades")); }
     let vocal = stems.iter().find(|s| { let l = s.to_lowercase(); l.contains("vocal") || l.contains("sång") }).cloned();
-    Ok(Json(json!({"sid": sid, "stems": stems, "vocal": vocal})))
+    Ok(Json(json!({"sid": sid, "stems": stems, "vocal": vocal, "project": project})))
 }
 
 async fn stem(State(root): State<PathBuf>, Path((sid, name)): Path<(String, String)>)
@@ -191,8 +196,7 @@ async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): J
         buf.into_inner()))
 }
 
-#[tokio::main]
-async fn main() {
+async fn serve(ready: std::sync::mpsc::Sender<String>) {
     let dir = std::env::temp_dir().join("vocal-cleaner");
     fs::create_dir_all(&dir).expect("kan inte skapa arbetsmapp");
     let app = Router::new()
@@ -201,11 +205,126 @@ async fn main() {
         .route("/api/stem/:sid/:name", get(stem))
         .route("/api/analyze/:sid/:name", get(analyze))
         .route("/api/export/:sid", post(export))
+        .route("/api/save/:sid", post(save))
+        .route("/api/project/:sid", post(save_project))
         .layer(DefaultBodyLimit::max(2 << 30))
         .with_state(dir);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", l.local_addr().unwrap());
     println!("Vocal Cleaner kör på {url}  (Ctrl+C för att avsluta)");
-    let _ = open::that(&url);
+    ready.send(url).expect("kan inte starta gränssnittet");
     axum::serve(l, app).await.unwrap();
+}
+
+async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) -> R<Json<Value>> {
+    #[cfg(target_os = "windows")]
+    {
+        let name = fname(&req.0.stem);
+        let suggested = format!("{}_cleaned.wav", FsPath::new(&name).file_stem().unwrap_or_default().to_string_lossy());
+        let path = tokio::task::spawn_blocking(move || rfd::FileDialog::new()
+            .set_title("Spara redigerat sångspår")
+            .add_filter("WAV-ljud", &["wav"])
+            .set_file_name(&suggested).save_file()).await.map_err(bad)?;
+        let Some(path) = path else { return Ok(Json(json!({"cancelled": true}))); };
+        // Stoppa överskrivning av importerade original även om användaren väljer arbetsmappen.
+        let input = sess(&state.0, &sid.0)?.join(&name);
+        if fs::canonicalize(&path).ok() == fs::canonicalize(&input).ok() {
+            return Err(bad("Välj ett nytt filnamn så att originalet bevaras"));
+        }
+        let (_, bytes) = export(state, sid, req).await?;
+        fs::write(&path, bytes).map_err(bad)?;
+        Ok(Json(json!({"cancelled": false, "name": path.file_name().unwrap_or_default().to_string_lossy()})))
+    }
+    #[cfg(not(target_os = "windows"))]
+    { let _ = (state, sid, req); Err(bad("Använd Exportera sångspår i webbläsarversionen")) }
+}
+
+fn main() {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        tokio::runtime::Runtime::new().expect("kan inte starta ljudserver").block_on(serve(tx));
+    });
+    let url = rx.recv().expect("ljudservern kunde inte starta");
+    #[cfg(target_os = "windows")]
+    {
+        use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
+        let event_loop = EventLoop::new();
+        let window = WindowBuilder::new().with_title("Vocal Cleaner")
+            .with_inner_size(tao::dpi::LogicalSize::new(1200.0, 720.0))
+            .build(&event_loop).expect("kan inte skapa programfönster");
+        let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ipc_dirty = dirty.clone();
+        let _webview = wry::WebViewBuilder::new(&window).with_url(&url)
+            .with_ipc_handler(move |request| { ipc_dirty.store(request.body() == "dirty", std::sync::atomic::Ordering::Relaxed); })
+            .build().expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
+        event_loop.run(move |event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
+            if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
+                let close = !dirty.load(std::sync::atomic::Ordering::Relaxed) ||
+                    rfd::MessageDialog::new().set_title("Osparat projekt")
+                    .set_description("Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.")
+                    .set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+                if close { *control_flow = ControlFlow::Exit; }
+            }
+        });
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = open::that(&url);
+        loop { std::thread::park(); }
+    }
+}
+
+fn project_zip(dir: &FsPath, project: &Value) -> R<Vec<u8>> {
+    let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    z.start_file("project.json", options).map_err(bad)?;
+    z.write_all(&serde_json::to_vec(project).map_err(bad)?).map_err(bad)?;
+    for entry in fs::read_dir(dir).map_err(bad)? {
+        let entry = entry.map_err(bad)?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if is_audio(&name) {
+            z.start_file(name, options).map_err(bad)?;
+            std::io::copy(&mut fs::File::open(entry.path()).map_err(bad)?, &mut z).map_err(bad)?;
+        }
+    }
+    Ok(z.finish().map_err(bad)?.into_inner())
+}
+async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json(project): Json<Value>)
+    -> R<axum::response::Response> {
+    use axum::response::IntoResponse;
+    let bytes = project_zip(&sess(&root, &sid)?, &project)?;
+    #[cfg(target_os = "windows")]
+    {
+        let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()
+            .set_title("Spara Vocal Cleaner-projekt").add_filter("Vocal Cleaner-projekt", &["vcleaner"])
+            .set_file_name("Vocal-Cleaner.vcleaner").save_file()).await.map_err(bad)?;
+        let Some(path) = path else { return Ok(Json(json!({"cancelled": true})).into_response()); };
+        fs::write(path, bytes).map_err(bad)?;
+        Ok(Json(json!({"cancelled": false})).into_response())
+    }
+    #[cfg(not(target_os = "windows"))]
+    { Ok(([(header::CONTENT_TYPE, "application/zip"),
+        (header::CONTENT_DISPOSITION, "attachment; filename=Vocal-Cleaner.vcleaner")], bytes).into_response()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn project_keeps_original_audio_and_edit_manifest() {
+        let dir = std::env::temp_dir().join(format!("vocal-cleaner-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("Vocals.wav"), b"original audio bytes").unwrap();
+        fs::write(dir.join("Drums.wav"), b"drums").unwrap();
+        let manifest = json!({"version":1,"tracks":{"Vocals.wav":{"edits":[{"kind":"mute","start":1,"end":2,"fade":0.01}]}}});
+        let bytes = project_zip(&dir, &manifest).unwrap();
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+        let mut audio = Vec::new();archive.by_name("Vocals.wav").unwrap().read_to_end(&mut audio).unwrap();
+        assert_eq!(audio, b"original audio bytes");
+        let mut text = String::new();archive.by_name("project.json").unwrap().read_to_string(&mut text).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), manifest);
+        assert!(archive.by_name("Drums.wav").is_ok());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

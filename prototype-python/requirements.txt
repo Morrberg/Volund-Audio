@@ -1,5 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-soundfile>=0.12
-numpy
