@@ -76,7 +76,7 @@ mod tests {
     fn metadata_edit_clear_and_audio_roundtrip() {
         let original=wav();let changes=Changes{clear:false,fields:vec![Field{key:"TrackTitle".into(),value:"Sång – äöå".into()},Field{key:"TrackArtist".into(),value:"Chaoswrought".into()}]};
         let exported=write_tags(original.clone(),&[],Some(&changes)).unwrap();
-        let mut cursor=Cursor::new(exported.clone());let file=lofty::read_from(&mut cursor).unwrap();
+        let mut cursor=Cursor::new(exported.clone());let file=lofty::file::TaggedFile::read_from(&mut cursor, lofty::config::ParseOptions::default()).unwrap();
         assert_eq!(file.primary_tag().unwrap().get_string(ItemKey::TrackTitle),Some("Sång – äöå"));
         let mut reader=hound::WavReader::new(Cursor::new(exported)).unwrap();
         assert_eq!(reader.spec().channels,2);assert_eq!(reader.spec().sample_rate,44100);
@@ -84,7 +84,7 @@ mod tests {
         let cleared=write_tags(original.clone(),file.tags(),Some(&Changes{clear:true,fields:vec![]})).unwrap();
         assert_eq!(cleared,original);
         let preserved=write_tags(original,file.tags(),None).unwrap();
-        let file=lofty::read_from(&mut Cursor::new(preserved)).unwrap();
+        let file=lofty::file::TaggedFile::read_from(&mut Cursor::new(preserved), lofty::config::ParseOptions::default()).unwrap();
         assert_eq!(file.primary_tag().unwrap().get_string(ItemKey::TrackArtist),Some("Chaoswrought"));
     }
 }

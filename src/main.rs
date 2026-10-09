@@ -203,6 +203,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
     fs::create_dir_all(&dir).expect("kan inte skapa arbetsmapp");
     let app = Router::new()
         .route("/", get(|| async { Html(INDEX) }))
+        .route("/icon.svg", get(|| async { ([(header::CONTENT_TYPE, "image/svg+xml")], include_str!("../assets/icon.svg")) }))
         .route("/api/upload", post(upload))
         .route("/api/stem/:sid/:name", get(stem))
         .route("/api/analyze/:sid/:name", get(analyze))
@@ -253,7 +254,8 @@ fn main() {
         use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new().with_title("Vocal Cleaner")
-            .with_inner_size(tao::dpi::LogicalSize::new(1200.0, 720.0))
+            .with_inner_size(tao::dpi::LogicalSize::new(1320.0, 860.0))
+            .with_window_icon(tao::window::Icon::from_rgba(include_bytes!("../assets/icon.rgba").to_vec(), 64, 64).ok())
             .build(&event_loop).expect("kan inte skapa programfönster");
         let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ipc_dirty = dirty.clone();
