@@ -32,6 +32,7 @@ function wav(freq){
   assert.ok(await page.locator('section.track.active #transport').isVisible());
   await page.locator('#metadataPanel summary').click();
   await page.getByLabel('Titel',{exact:true}).fill('Ändrad titel – Chaoswrought');
+  await page.locator('section.track.active canvas').scrollIntoViewIfNeeded();
   const canvas=await page.locator('section.track.active canvas').boundingBox();
   await page.mouse.move(canvas.x+canvas.width*.2,canvas.y+canvas.height/2);await page.mouse.down();
   await page.mouse.move(canvas.x+canvas.width*.4,canvas.y+canvas.height/2,{steps:6});await page.mouse.up();
