@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test editor persistence
+        run: node tests/editor.test.cjs
       - name: Run tests
         run: cargo test --verbose
 

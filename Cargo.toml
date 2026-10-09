@@ -1,6 +1,6 @@
 [package]
 name = "vocal-cleaner"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -17,3 +17,8 @@ open = "5"
 opt-level = 3
 lto = true
 strip = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wry = "0.45"
+tao = "0.30"
+rfd = "0.15"

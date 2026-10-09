@@ -15,10 +15,12 @@ small{opacity:.7}
 </style></head><body>
 <h1>Vocal Cleaner</h1>
 <div class="bar">
-  <input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip">
+  <input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip,.vcleaner">
   <select id="vsel" title="Sångspår"></select>
   <button class="p" onclick="analyze()">Hitta förslag</button>
-  <button class="p" onclick="exportWav()">Exportera sångspår</button>
+  <button class="p" id="save" onclick="saveWav()" disabled>Spara sångspår…</button>
+  <button id="projectSave" onclick="saveProject()" disabled>Spara projekt…</button>
+  <span id="saveStatus" role="status" aria-live="polite">Öppna ljudfiler för att börja.</span>
 </div>
 <canvas id="wf"></canvas>
 <small>Dra = markera · klick = sätt position · hjul = zooma · Skift+hjul = panorera</small>
@@ -36,19 +38,30 @@ small{opacity:.7}
 <div id="sg"></div>
 <script>
 const $=s=>document.querySelector(s), ctx=new AudioContext();
+let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
 $("#f").onchange=async e=>{
+  if(vocal&&projectDirty()&&!confirm("Öppna nya filer och lämna det nuvarande projektet? Osparade projektändringar försvinner."))return;
+  stop();vocal=null;
   const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
   const r=await fetch("/api/upload",{method:"POST",body:fd});
   if(!r.ok){alert("Uppladdning misslyckades");return}
-  const j=await r.json();sid=j.sid;names=j.stems;bufs={};
+  const j=await r.json();sid=j.sid;names=j.stems;bufs={};vocal=null;tracks=j.project?.tracks||{};projectSaved=projectFingerprint();
   for(const n of names)bufs[n]=await ctx.decodeAudioData(await(await fetch(`/api/stem/${sid}/${encodeURIComponent(n)}`)).arrayBuffer());
-  const s=$("#vsel");s.innerHTML=names.map(n=>`<option>${n}</option>`).join("");
+  const s=$("#vsel");s.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
   s.value=j.vocal||names[0];setVocal(s.value);
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
-function setVocal(n){stop();vocal=n;edits=[];redo=[];sel=null;sugg=[];view={a:0,b:bufs[n].duration};rebuild();renderSugg();draw()}
+function stashTrack(){if(vocal)tracks[vocal]={edits:edits.slice(),redo:redo.slice(),savedEdits};}
+function projectFingerprint(){return JSON.stringify(Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length).map(n=>[n,tracks[n].edits]))}
+function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved}
+function setVocal(n){
+  stashTrack();stop();vocal=n;
+  const state=tracks[n]||{edits:[],redo:[],savedEdits:"[]"};
+  edits=state.edits.slice();redo=(state.redo||[]).slice();savedEdits=state.savedEdits||"[]";
+  sel=null;sugg=[];view={a:0,b:bufs[n].duration};rebuild();renderSugg();draw();saveState();
+}
 
 function rebuild(){
   const b=bufs[vocal],sr=b.sampleRate;edBuf=ctx.createBuffer(b.numberOfChannels,b.length,sr);
@@ -64,7 +77,7 @@ function rebuild(){
     }
   }
 }
-function changed(){const was=playing,p=pos();rebuild();draw();if(was)play(p)}
+function changed(){saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
 function addEdit(kind,s=sel){if(!s||s[1]-s[0]<0.005)return;edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
 function undo(){if(edits.length){redo.push(edits.pop());changed()}}
 function redoE(){if(redo.length){edits.push(redo.pop());changed()}}
@@ -104,7 +117,7 @@ function draw(){
   g.fillStyle="#888";g.font="11px sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12)}
 const wf=$("#wf"),tAt=e=>view.a+e.offsetX/wf.clientWidth*(view.b-view.a);
 let dragA=null,moved=false;
-wf.onmousedown=e=>{dragA=tAt(e);moved=false};
+wf.onmousedown=e=>{if(!vocal)return;dragA=tAt(e);moved=false};
 wf.onmousemove=e=>{if(dragA===null)return;moved=true;const t=tAt(e);sel=[Math.max(0,Math.min(dragA,t)),Math.min(bufs[vocal].duration,Math.max(dragA,t))];draw()};
 window.onmouseup=()=>{if(dragA!==null&&!moved){sel=null;startOff=dragA;if(playing)play(dragA)}dragA=null;draw()};
 wf.onwheel=e=>{e.preventDefault();if(!vocal)return;const D=bufs[vocal].duration,span=view.b-view.a;
@@ -127,10 +140,44 @@ function goS(i){const s=sugg[i];sel=[s.start,s.end];const pad=1.5;
 function accS(i){const s=sugg[i];if(s.state=="godkänd")return;s.state="godkänd";addEdit("mute",[s.start,s.end]);renderSugg()}
 function rejS(i){sugg[i].state="avvisad";renderSugg();draw()}
 
+function saveState(message){
+  $("#save").disabled=!vocal||saving;$("#projectSave").disabled=!vocal||saving;
+  $("#saveStatus").textContent=message||(JSON.stringify(edits)!==savedEdits?"Osparade ändringar":"Inga osparade ändringar");
+}
+async function saveWav(){
+  if(!vocal||saving)return;
+  if(!/Windows/i.test(navigator.userAgent)){await exportWav();return}
+  saving=true;$("#vsel").disabled=true;$("#f").disabled=true;const snapshot=JSON.stringify(edits);saveState("Välj var sångspåret ska sparas…");
+  try{
+    const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot)})});
+    if(!r.ok)throw new Error(await r.text());
+    const j=await r.json();if(!j.cancelled){savedEdits=snapshot;saveState(JSON.stringify(edits)===snapshot?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
+  }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false}
+}
+async function saveProject(){
+  if(!vocal||saving)return;
+  stashTrack();const snapshot=JSON.stringify(tracks),fingerprint=projectFingerprint();saving=true;saveState("Sparar projekt…");
+  $("#vsel").disabled=true;$("#f").disabled=true;
+  try{
+    const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:1,tracks:JSON.parse(snapshot)})});
+    if(!r.ok)throw new Error(await r.text());
+    if(/Windows/i.test(navigator.userAgent)){
+      const j=await r.json();if(j.cancelled){saveState("Sparandet avbröts.");return}
+    }else{
+      const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());a.download="Vocal-Cleaner.vcleaner";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    }
+    projectSaved=fingerprint;saveState("Projekt sparat – alla stems och redigeringar finns kvar.");
+  }catch(e){saveState("Kunde inte spara projekt: "+e.message)}finally{
+    saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;
+  }
+}
+addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveWav()}});
+addEventListener("beforeunload",e=>{if(projectDirty()){e.preventDefault();e.returnValue=""}});
+
 // ---- export (nytt filnamn, originalet orört)
 async function exportWav(){
   if(!vocal)return;const r=await fetch(`/api/export/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits})});
   if(!r.ok){alert("Export misslyckades");return}
   const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());
-  a.download=(r.headers.get("content-disposition")||"").match(/filename="?([^";]+)/)?.[1]||"cleaned.wav";a.click()}
+  a.download=(r.headers.get("content-disposition")||"").match(/filename="?([^";]+)/)?.[1]||"cleaned.wav";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 </script></body></html>
