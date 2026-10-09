@@ -20,7 +20,7 @@ Inget ljud skickas till en molntjänst. På andra operativsystem öppnas webblä
 
 Att spara WAV sparar inte hela projektet. Projektfiler kan bli stora eftersom
 originalens ljuddata ingår. Avbruten spardialog behåller redigeringarna i appen.
-Spara projektet innan du stänger programfönstret. Stängning sparar inte automatiskt.
+Programfönstret varnar vid osparade projektändringar. Stängning sparar inte automatiskt.
 
 Dra = markera, klick = position, hjul = zooma, Skift+hjul = panorera.
 Detektionen använder energi och kontextregler, inte en AI-modell.

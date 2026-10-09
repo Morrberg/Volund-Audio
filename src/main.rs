@@ -252,12 +252,19 @@ fn main() {
         let window = WindowBuilder::new().with_title("Vocal Cleaner")
             .with_inner_size(tao::dpi::LogicalSize::new(1200.0, 720.0))
             .build(&event_loop).expect("kan inte skapa programfönster");
+        let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ipc_dirty = dirty.clone();
         let _webview = wry::WebViewBuilder::new().with_url(&url)
+            .with_ipc_handler(move |request| { ipc_dirty.store(request.body() == "dirty", std::sync::atomic::Ordering::Relaxed); })
             .build(&window).expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
-                *control_flow = ControlFlow::Exit;
+                let close = !dirty.load(std::sync::atomic::Ordering::Relaxed) ||
+                    rfd::MessageDialog::new().set_title("Osparat projekt")
+                    .set_description("Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.")
+                    .set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
+                if close { *control_flow = ControlFlow::Exit; }
             }
         });
     }

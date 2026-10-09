@@ -141,6 +141,7 @@ function accS(i){const s=sugg[i];if(s.state=="godkänd")return;s.state="godkänd
 function rejS(i){sugg[i].state="avvisad";renderSugg();draw()}
 
 function saveState(message){
+  if(window.ipc)window.ipc.postMessage(projectDirty()?"dirty":"clean");
   $("#save").disabled=!vocal||saving;$("#projectSave").disabled=!vocal||saving;
   $("#saveStatus").textContent=message||(JSON.stringify(edits)!==savedEdits?"Osparade ändringar":"Inga osparade ändringar");
 }
@@ -166,7 +167,7 @@ async function saveProject(){
     }else{
       const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());a.download="Vocal-Cleaner.vcleaner";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     }
-    projectSaved=fingerprint;saveState("Projekt sparat – alla stems och redigeringar finns kvar.");
+    projectSaved=fingerprint;saveState(projectDirty()?"Projekt sparat. Det finns nya osparade ändringar.":"Projekt sparat – alla stems och redigeringar finns kvar.");
   }catch(e){saveState("Kunde inte spara projekt: "+e.message)}finally{
     saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;
   }
