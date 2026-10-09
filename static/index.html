@@ -123,7 +123,7 @@ function editedBuffer(name){
   const buffer=ctx.createBuffer(channels,b.length,b.sampleRate),sr=b.sampleRate;
   for(let c=0;c<channels;c++)buffer.getChannelData(c).set(b.getChannelData(Math.min(c,b.numberOfChannels-1)));
   let panBase=null;
-  for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter(e=>e.kind==='pan')]){
+  for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter((e,i)=>e.kind==='pan'&&!ops.slice(i+1).some(later=>later.kind==='pan'&&later.start===e.start&&later.end===e.end))]){
     const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
     if(e.kind==='pan'){
       const left=buffer.getChannelData(0),right=buffer.getChannelData(1),edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));

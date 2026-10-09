@@ -119,7 +119,8 @@ fn apply_edits(y: &mut [f32], sr: u32, ch: usize, mono: bool, edits: &[Edit]) ->
     if ch==0 {return Err("Ljudet saknar kanaler".into())}
     let frames=y.len()/ch;
     let mut pan_base:Option<Vec<f32>>=None;
-    for e in edits.iter().filter(|e|e.kind!="pan").chain(edits.iter().filter(|e|e.kind=="pan")) {
+    let pans=edits.iter().enumerate().filter(|(i,e)|e.kind=="pan"&&!edits[i+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end)).map(|(_,e)|e);
+    for e in edits.iter().filter(|e|e.kind!="pan").chain(pans) {
         if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
         if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
@@ -393,6 +394,7 @@ mod tests {
         let edit=Edit{kind:"pan".into(),start:0.2,end:0.8,fade:0.01,pan_from:-1.,pan_to:-1.,pan_cycles:0};
         let (left,ch)=render_edits(original.clone(),1000,2,&[edit.clone()]).unwrap();assert_eq!(ch,2);assert_eq!(&left[..400],&original[..400]);assert_eq!(&left[1600..],&original[1600..]);assert_eq!(left[1001],0.);assert!((left[1000]-0.5).abs()<1e-6);assert_eq!(left[400],original[400]);assert_eq!(left[401],original[401]);
         let center=Edit{pan_from:0.,pan_to:0.,..edit.clone()};let (reset,_)=render_edits(original.clone(),1000,2,&[edit.clone(),center]).unwrap();assert_eq!(reset,original);
+        let partial=Edit{start:0.4,end:0.6,pan_from:0.,pan_to:0.,..edit.clone()};let (blended,_)=render_edits(original.clone(),1000,2,&[edit.clone(),partial]).unwrap();assert_eq!(blended[801],0.);assert!((blended[1001]-0.3).abs()<1e-6);
         let sweep=Edit{pan_to:1.,..edit};let (moving,_)=render_edits(original,1000,2,&[sweep]).unwrap();assert!(moving[440]>moving[441]);assert!(moving[1559]>moving[1558]);
     }
     #[test]
