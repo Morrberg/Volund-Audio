@@ -1,4 +1,4 @@
-# Vocal Cleaner 0.4
+# Vocal Cleaner 0.5
 
 Lokalt verktyg för att tysta oönskade vokala inslag i Suno-stems.
 
@@ -70,3 +70,13 @@ Kompressorn är stereolänkad med mjukt knä och 25 ms attack/150 ms release. Li
 Öppna färdiga WAV/FLAC-masterfiler i **Album** via dess egen filväljare. Välj ordning, sida och sekunder före varje låt (sidans första låt får inget automatiskt mellanrum). Export ger en WAV per använd sida, tidsatt låtlista och JSON-rapport. Ingen ny EQ, kompression eller normalisering görs; omsampling och slutlig dither kan behövas. Sammanställningen sänks som helhet endast om −1 dBTP överskrids. Detta är ett leveransunderlag, inte en garanterad skär- eller dupliceringsmaster. Spara ett **sidprojekt** och återöppna det med Albumets filväljare för att bevara ordning, sidor, mellanrum och originalljud. Vinyl/kassett bör sammanställas från respektive masterversion, inte streamingmastern.
 
 Testerna täcker referens-LUFS, true peak även vid transienter/hög diskant, omsamplingens nivå och aliasdämpning, stereo, tystade partier, profilers PCM-format, filnamn, ZIP-rapporter och sidexport. Windows UI-testet kontrollerar profilval, mixkontroller, förhandslyssning, samtliga fyra exporter, metadata och projektåteröppning. Native programfönster/spardialoger behöver fortfarande provköras manuellt.
+
+## 0.5 — panorering av markeringar
+
+Markera ett parti i ett spår och välj **Vänster**, **Center**, **Höger**, en glidning mellan sidorna eller **Pendla vänster ↔ höger** (1–32 hela varv över markeringen). Reglaget ger valfri fast position mellan sidorna. Bara det markerade partiet på det valda spåret påverkas. Markeringens första/sista 10 ms övergår mjukt från/till spårets tidigare ljudbild. Andra spår ändras inte.
+
+Panorering sparas som en redigering, med ångra/gör om och en lista där en enskild panorering kan tas bort. Vid överlapp används den senaste panoreringen i överlappet; Center kan därför återställa ett redan panorerat parti. Center behåller originalets naturliga stereobild, det gör inte stereoljud till mono. Vågformen visar båda kanalernas toppar tillsammans; lila markeringar visar panorerade partier.
+
+Stereopan använder equal-power-crossfeed: båda originalkanalerna kan flyttas till samma sida utan att den ena kanalens innehåll kastas bort. Mono med panorering exporteras som stereo med equal-power-gain (center motsvarar originalets mono i båda högtalarna). Utan panorering behåller vanlig stemexport originalets kanalantal. Summering till en sida kan höja topparna; sänk spårnivån vid behov och kontrollera masteringens mätvärden. Ljud som redan är i motfas kan släcka ut varandra vid summering.
+
+Samma beräkningar används i vanlig förhandslyssning, WAV-stemexport, masteringens mix och samtliga masterprofiler. Vinylprofilens inställning för smal djupbas kan minska panoreringens bredd i de lägsta frekvenserna.

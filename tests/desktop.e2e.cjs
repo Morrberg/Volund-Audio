@@ -108,6 +108,20 @@ function wav(freq){
   assert.equal(await page.locator('#master-bass_db').inputValue(),'-1.5');
   assert.equal(await page.getByLabel('Nivå Drums.wav',{exact:true}).inputValue(),'-3');
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.getByRole('button',{name:'2 Guitar.wav',exact:true}).click();
+  await page.evaluate(()=>{sel=[1,3];draw()});await page.locator('#panLeft').click();
+  const panned=await page.evaluate(async()=>{
+    const preview=editedBuffer(vocal),r=await fetch(`/api/export/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stem:vocal,edits})});if(!r.ok)throw new Error(await r.text());const sound=await ctx.decodeAudioData(await r.arrayBuffer());let right=0,left=0,error=0;
+    for(let i=Math.round(2.1*sound.sampleRate);i<Math.round(2.2*sound.sampleRate);i++){right=Math.max(right,Math.abs(sound.getChannelData(1)[i]));left+=Math.abs(sound.getChannelData(0)[i]);error=Math.max(error,Math.abs(sound.getChannelData(0)[i]-preview.getChannelData(0)[i]))}
+    return {right,left,error,vocalEdits:tracks['1 Lead Vocals.wav']?.edits||[],kind:edits.at(-1).kind};
+  });assert.equal(panned.right,0);assert.ok(panned.left>0);assert.ok(panned.error<.0001);assert.equal(panned.vocalEdits.length,0);assert.equal(panned.kind,'pan');
+  await page.locator('#panCenter').click();assert.ok(await page.evaluate(()=>Math.abs(editedBuffer(vocal).getChannelData(1)[Math.round(2.123*ctx.sampleRate)])>0));
+  await page.getByRole('button',{name:'Ångra',exact:true}).click();assert.equal(await page.evaluate(()=>editedBuffer(vocal).getChannelData(1)[Math.round(2.123*ctx.sampleRate)]),0);
+  await page.locator('#panSweepRight').click();assert.equal(await page.evaluate(()=>edits.at(-1).pan_to),1);
+  await page.locator('#panCycles').fill('3');await page.locator('#panAlternate').click();assert.equal(await page.evaluate(()=>edits.at(-1).pan_cycles),3);
+  const panProject=await page.evaluate(async()=>{stashTrack();const r=await fetch(`/api/project/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:3,tracks,mastering})});const bytes=await r.arrayBuffer();const fd=new FormData();fd.append('files',new Blob([bytes]),'pan.vcleaner');return(await fetch('/api/upload',{method:'POST',body:fd})).json()});
+  assert.equal(panProject.project.tracks['2 Guitar.wav'].edits.at(-1).pan_cycles,3);
+  await page.screenshot({path:'target/ui-panning.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exitCode=1});
