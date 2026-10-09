@@ -42,3 +42,5 @@ MIT-licens.
 Mörkt och ljust tema kan växlas i programmet. Spårtyperna har olika vågformsfärger, det aktiva spåret markeras tydligt och markerad tid/längd visas vid kontrollerna.
 
 `assets/icon.svg` är ikonens vektorkälla. `icon.ico` bäddas in i Windows-exe via `build.rs`, och `icon.rgba` används för fönsterikonen.
+
+Windows-CI testar gränssnittet och Rust-API:t i headless Microsoft Edge med syntetiskt ljud; skärmbilder av båda temana sparas som artifact. Serverläget som används av testet aktiveras endast via testmiljövariabler. Själva Windows-fönstret och native spardialoger behöver även provköras manuellt.

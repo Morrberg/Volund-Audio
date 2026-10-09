@@ -249,6 +249,13 @@ fn main() {
         tokio::runtime::Runtime::new().expect("kan inte starta ljudserver").block_on(serve(tx));
     });
     let url = rx.recv().expect("ljudservern kunde inte starta");
+    // CI uses the same embedded UI and API without needing an interactive desktop.
+    if let Ok(path) = std::env::var("VOCAL_CLEANER_TEST_URL_FILE") {
+        fs::write(path, &url).expect("kan inte lämna serveradressen till UI-testet");
+    }
+    if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
+        loop { std::thread::park(); }
+    }
     #[cfg(target_os = "windows")]
     {
         use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};

@@ -1,4 +1,4 @@
-// Tests the real Windows WebView with synthetic audio. Debugging stays on loopback in CI.
+// Tests the real embedded UI and Rust API in Microsoft Edge with synthetic audio on Windows.
 const {chromium}=require('../target/ui-tools/node_modules/playwright-core');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -14,14 +14,15 @@ function wav(freq){
  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'vocal-cleaner-ui-'));
  const names=['10 Guitar.wav','2 Guitar.wav','1 Lead Vocals.wav','Drums.wav'];
  const paths=names.map((n,i)=>{const p=path.join(temp,n);fs.writeFileSync(p,wav(100+i*75));return p});
- const app=spawn(path.resolve('target/release/vocal-cleaner.exe'),[],{env:{...process.env,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9222 --remote-debugging-address=127.0.0.1'},stdio:'ignore'});
- let browser;
+ const urlFile=path.join(temp,'server.url');
+ const app=spawn(path.resolve('target/release/vocal-cleaner.exe'),[],{env:{...process.env,VOCAL_CLEANER_SERVER_ONLY:'1',VOCAL_CLEANER_TEST_URL_FILE:urlFile},stdio:['ignore','pipe','pipe']});
+ let browser,appLog='';app.stdout.on('data',b=>appLog+=b);app.stderr.on('data',b=>appLog+=b);
  try{
-  for(let i=0;i<40;i++){try{browser=await chromium.connectOverCDP('http://127.0.0.1:9222');break}catch{await pause(500)}}
-  assert.ok(browser,'WebView2 did not start with the local test debugger');
-  const context=browser.contexts()[0];let page;
-  for(let i=0;i<30;i++){page=context.pages().find(p=>p.url().includes('127.0.0.1'));if(page)break;await pause(200)}
-  assert.ok(page,'Application page did not load');
+  for(let i=0;i<40&&!fs.existsSync(urlFile);i++){if(app.exitCode!==null)break;await pause(250)}
+  assert.ok(fs.existsSync(urlFile),'Application server did not start. '+appLog);
+  browser=await chromium.launch({channel:'msedge',headless:true});
+  const context=await browser.newContext({viewport:{width:1280,height:820}}),page=await context.newPage();
+  await page.goto(fs.readFileSync(urlFile,'utf8'));
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.locator('#f').setInputFiles(paths);
   await page.locator('section.track').nth(3).waitFor();
@@ -47,7 +48,7 @@ function wav(freq){
     return {metadata,duration:sound.duration,middle:sound.getChannelData(0)[Math.round(mid*sound.sampleRate)]};
   });
   assert.equal(exported.metadata.fields.find(f=>f.key==='TrackTitle').value,'Ändrad titel – Chaoswrought');
-  assert.ok(Math.abs(exported.duration-8)<.001);assert.equal(exported.middle,0);
+  assert.ok(Math.abs(exported.duration-8)<.001);assert.equal(Math.abs(exported.middle),0);
   await page.getByRole('button',{name:'1 Lead Vocals.wav',exact:true}).click();await page.getByRole('button',{name:'Drums.wav',exact:true}).click();
   assert.equal(await page.getByLabel('Titel',{exact:true}).inputValue(),'Ändrad titel – Chaoswrought');
   await page.screenshot({path:'target/ui-dark.png',fullPage:true});
@@ -60,6 +61,6 @@ function wav(freq){
     const uploaded=await(await fetch('/api/upload',{method:'POST',body:fd})).json();return (await fetch(`/api/metadata/${uploaded.sid}/cleared.wav`)).json();
   });
   assert.equal(cleared.fields.length,0);assert.equal(cleared.pictures,0);assert.equal(cleared.binary,0);
-  assert.deepEqual(errors,[]);console.log('PASS: native window, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
+  assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exitCode=1});

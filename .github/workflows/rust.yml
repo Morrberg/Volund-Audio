@@ -45,7 +45,7 @@ jobs:
           node-version: 24
       - name: Install WebView test driver
         run: npm install --prefix target/ui-tools --no-save --ignore-scripts playwright-core@1.58.2
-      - name: Test native Windows UI
+      - name: Test Windows editor UI
         run: node tests/desktop.e2e.cjs
       - name: Upload UI previews
         if: always()
