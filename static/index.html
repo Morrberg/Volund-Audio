@@ -2,44 +2,58 @@
 <html lang="sv"><head><meta charset="utf-8"><title>Vocal Cleaner</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-:root{--bg:#fff;--fg:#1b1d22;--card:#f1f3f6;--ac:#2b6cff}
-@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaee;--card:#21242b}}
-body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
-h1{font-size:20px;margin:0 0 12px}
-.bar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;align-items:center}
-button,select{background:var(--card);color:var(--fg);border:1px solid #8884;border-radius:6px;padding:6px 10px;cursor:pointer}
-button.p{background:var(--ac);color:#fff;border:0}
-.wave{width:100%;height:110px;background:var(--card);border-radius:8px;cursor:crosshair;display:block}
-.sg{background:var(--card);padding:6px 8px;border-radius:6px;margin:4px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.track{margin:10px 0;border:2px solid transparent;border-radius:8px;padding:6px}.track.active{border-color:var(--ac)}.track.active .wave{height:170px}.track header{margin-bottom:5px}small{opacity:.7}
+:root{color-scheme:dark;--bg:#0c121a;--fg:#edf3f8;--muted:#92a2b4;--card:#141e2a;--surface:#101924;--border:#263443;--ac:#41d6b4;--wave:#0e1721}
+:root[data-theme=light]{color-scheme:light;--bg:#edf2f5;--fg:#182633;--muted:#5e7183;--card:#fff;--surface:#f5f8fa;--border:#d4dfe7;--ac:#087f6a;--wave:#eef4f8}
+*{box-sizing:border-box}body{margin:0;padding:24px;background:var(--bg);color:var(--fg);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+.app-header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:13px}.brand img{width:52px;height:52px}.brand h1{font-size:25px;letter-spacing:-.7px;line-height:1.2;margin:0}.brand p{color:var(--muted);font-size:12px;margin:4px 0 0;letter-spacing:.7px}.version{font-size:11px;border:1px solid var(--border);border-radius:5px;padding:3px 6px;color:var(--muted);margin-right:8px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.import-bar{padding:14px;background:var(--card);border:1px solid var(--border);border-radius:12px}.file-button{display:inline-flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px;cursor:pointer;font-weight:600}.file-button:focus-within{outline:2px solid var(--ac)}.file-button input{position:absolute;width:1px;height:1px;opacity:0}
+button,select{font:inherit;background:var(--surface);color:var(--fg);border:1px solid var(--border);border-radius:7px;padding:7px 11px;cursor:pointer}button:hover,select:hover{border-color:var(--ac)}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--ac);outline-offset:2px}button:disabled{opacity:.45;cursor:default}button.p{background:var(--ac);color:#081c17;border-color:var(--ac);font-weight:700}:root[data-theme=light] button.p{color:#fff}.import-bar #vsel{max-width:280px}.import-bar #saveStatus{font-size:12px;color:var(--muted)}
+.workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:22px 2px 10px}.workspace-heading h2{font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:0;color:var(--muted)}small{color:var(--muted);font-size:12px}
+.track{margin:10px 0;border:1px solid var(--border);border-radius:11px;padding:11px;background:var(--card)}.track.active{border:2px solid var(--ac);padding:10px;box-shadow:0 0 0 3px #41d6b40a}.track header{display:flex;align-items:center;gap:10px;margin-bottom:9px}.track header button{font-weight:600;background:transparent;border:0;padding:2px 4px;text-align:left;max-width:80%;overflow-wrap:anywhere}.track header small{margin-left:auto;border:1px solid var(--border);border-radius:5px;padding:2px 7px}.track.active header small{color:var(--ac);border-color:var(--ac)}
+.wave{width:100%;height:96px;background:var(--wave);border-radius:6px;cursor:crosshair;display:block}.track.active .wave{height:156px}#editorPanel{background:var(--card);padding-top:10px}#activeName{display:none}.editor-hint{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}.editor-hint #selectionReadout{font-variant-numeric:tabular-nums;color:var(--ac)}
+#transport{position:sticky;bottom:10px;background:var(--card);padding:10px;border:1px solid var(--border);border-radius:9px;z-index:2;box-shadow:0 6px 20px #0002}#transport label{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;margin:0 4px}#transport button#pp{min-width:88px}#transport button.edit{border-color:#41d6b45c;color:var(--ac)}#transport .separator{width:1px;height:24px;background:var(--border);margin:0 2px}
+input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-color:var(--ac)}.metadata{margin:10px 0;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:8px}.metadata summary{cursor:pointer;font-weight:600;font-size:13px}.metadata p{color:var(--muted);font-size:12px}.meta-row{display:grid;grid-template-columns:minmax(120px,170px) 1fr auto;gap:8px;align-items:center;margin:7px 0}.meta-row label{font-size:12px;color:var(--muted)}.meta-row textarea{min-height:34px;border:1px solid var(--border);border-radius:5px;padding:6px;resize:vertical}.meta-row button{font-size:12px}.sg{background:var(--surface);padding:9px 12px;border:1px solid var(--border);border-radius:7px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sg b{color:var(--ac);font-variant-numeric:tabular-nums}.empty-note{padding:55px 20px;text-align:center;border:1px dashed var(--border);border-radius:11px;color:var(--muted)}
+[hidden]{display:none!important}@media(max-width:760px){body{padding:12px}.brand h1{font-size:21px}.brand img{width:43px;height:43px}.import-bar #vsel{max-width:100%}.meta-row{grid-template-columns:100px 1fr auto}#transport{gap:6px;padding:8px}#transport button{font-size:12px;padding:7px}.separator{display:none}.workspace-heading{align-items:flex-start}}
 </style></head><body>
-<h1>Vocal Cleaner</h1>
-<div class="bar">
-  <input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip,.vcleaner">
+<header class="app-header"><div class="brand"><img src="/icon.svg" alt=""><div><h1>Vocal Cleaner</h1><p>STEM EDITOR · LOKAL LJUDREDIGERING</p></div></div><div><span class="version">v0.3</span><button id="themeButton" onclick="toggleTheme()" aria-label="Växla ljust och mörkt tema">Ljust tema</button></div></header>
+<div class="bar import-bar">
+  <label class="file-button">＋ Öppna stems / projekt<input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip,.vcleaner"></label>
   <select id="vsel" title="Sångspår"></select>
   <button class="p" onclick="analyze()">Hitta förslag</button>
-  <button class="p" id="save" onclick="saveWav()" disabled>Spara sångspår…</button>
+  <button class="p" id="save" onclick="saveWav()" disabled>Spara valt spår…</button>
   <button id="projectSave" onclick="saveProject()" disabled>Spara projekt…</button>
   <span id="saveStatus" role="status" aria-live="polite">Öppna ljudfiler för att börja.</span>
 </div>
-<small id="memory"></small>
-<div id="tracks"><canvas class="wave" id="wf"></canvas></div>
-<small>Dra = markera · klick = sätt position · hjul = zooma · Skift+hjul = panorera</small>
-<div class="bar">
+<div class="workspace-heading"><h2>Spår · gemensam tidslinje</h2><small id="memory">WAV, MP3, FLAC, Suno ZIP och Vocal Cleaner-projekt</small></div>
+<div id="tracks"><div class="empty-note">Öppna dina stems för att se och redigera dem på samma tidslinje.</div><canvas class="wave" id="wf" hidden></canvas></div>
+<div id="editorPanel" hidden>
+<small id="activeName"></small><br>
+<div class="editor-hint"><small>Dra för att markera · klicka för position · hjul för zoom · Skift+hjul för panorering</small><small id="selectionReadout">Ingen markering</small></div>
+<div class="bar" id="transport">
   <button onclick="playBtn()" id="pp">▶ Spela</button>
   <button onclick="stop()">■ Stopp</button>
   <button onclick="selPlay()">Spela markering</button>
   <label><input type="checkbox" onchange="loop=this.checked"> Loop markering</label>
-  <button onclick="addEdit('mute')">Tysta</button>
-  <button onclick="addEdit('fadein')">Fade-in</button>
-  <button onclick="addEdit('fadeout')">Fade-out</button>
-  <button onclick="undo()">Ångra</button><button onclick="redoE()">Gör om</button>
+  <span class="separator" aria-hidden="true"></span><button class="edit" onclick="addEdit('mute')">Tysta</button>
+  <button class="edit" onclick="addEdit('fadein')">Fade-in</button>
+  <button class="edit" onclick="addEdit('fadeout')">Fade-out</button>
+  <span class="separator" aria-hidden="true"></span><button onclick="undo()">Ångra</button><button onclick="redoE()">Gör om</button>
   <button onclick="ab()" id="abb">Visar: Redigerad</button>
 </div>
-<div id="sg"></div>
+<details class="metadata" id="metadataPanel"><summary>Metadata för valt spår</summary>
+<p id="metaSummary"></p><div id="metaFields"></div>
+<div class="bar"><select id="metaKey" aria-label="Nytt metadatafält"></select><button onclick="addMetadata()">Lägg till fält</button><button onclick="clearMetadata()">Rensa metadata</button><button onclick="resetMetadata()">Återställ från original</button></div>
+<small>Ändringarna gäller den exporterade WAV-filen och sparas i projektet. Fält som stöds av WAV följer med vid export. Originalfilen behålls.</small>
+</details>
+<div id="sg"></div></div>
 <script>
 const $=s=>document.querySelector(s), ctx=new AudioContext();
+function setTheme(theme){document.documentElement.dataset.theme=theme;$("#themeButton").textContent=theme==="light"?"Mörkt tema":"Ljust tema";try{localStorage.setItem("vocal-cleaner-theme",theme)}catch{}}
+function toggleTheme(){setTheme(document.documentElement.dataset.theme==="light"?"dark":"light");draw()}
+try{setTheme(localStorage.getItem("vocal-cleaner-theme")||"dark")}catch{}
+const editorPanel=$("#editorPanel");
 const trackCanvases=new Map(),peakCache=new Map(),editedBuffers=new Map();
+let metaInfo={};
 let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
@@ -49,15 +63,18 @@ $("#f").onchange=async e=>{
   const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
   const r=await fetch("/api/upload",{method:"POST",body:fd});
   if(!r.ok){alert("Uppladdning misslyckades");return}
-  const j=await r.json();sid=j.sid;names=j.stems;bufs={};vocal=null;tracks=j.project?.tracks||{};projectSaved=projectFingerprint();
+  const j=await r.json();sid=j.sid;names=j.stems;bufs={};metaInfo={};vocal=null;tracks=j.project?.tracks||{};projectSaved=projectFingerprint();
   for(const n of names)bufs[n]=await ctx.decodeAudioData(await(await fetch(`/api/stem/${sid}/${encodeURIComponent(n)}`)).arrayBuffer());
+  await Promise.all(names.map(async n=>{try{const r=await fetch(`/api/metadata/${sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());metaInfo[n]=await r.json()}catch(e){metaInfo[n]={error:e.message,fields:[],pictures:0,binary:0}}}));
+  names.sort(compareStems);
   const s=$("#vsel");s.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
   editedBuffers.clear();buildTracks();s.value=j.vocal||names[0];setVocal(s.value);
   $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
-function stashTrack(){if(vocal)tracks[vocal]={edits:edits.slice(),redo:redo.slice(),savedEdits};}
-function projectFingerprint(){return JSON.stringify(Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length).map(n=>[n,tracks[n].edits]))}
+function stashTrack(){if(vocal)tracks[vocal]={...tracks[vocal],edits:edits.slice(),redo:redo.slice(),savedEdits};}
+function projectFingerprint(){return JSON.stringify(Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length||tracks[n].metadata).map(n=>[n,tracks[n].edits||[],tracks[n].metadata||null]))}
+function audioFingerprint(){return tracks[vocal]?.metadata?JSON.stringify({edits,metadata:tracks[vocal].metadata}):JSON.stringify(edits)}
 function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved}
 function setVocal(n){
   const switching=!!vocal;stashTrack();stop();vocal=n;
@@ -66,7 +83,10 @@ function setVocal(n){
   sel=null;sugg=[];if(!switching)view={a:0,b:projectDuration()};
   wf=trackCanvases.get(n)||wf;$("#vsel").value=n;
   for(const [name,c] of trackCanvases)c.parentElement.classList.toggle("active",name===n);
-  rebuild();renderSugg();draw();saveState();
+  const row=trackCanvases.get(n)?.parentElement;if(row)row.append(editorPanel);
+  editorPanel.hidden=false;
+  $("#activeName").textContent="Aktivt spår: "+n;
+  renderMetadata();rebuild();renderSugg();draw();saveState();
 }
 
 function editedBuffer(name){
@@ -113,15 +133,61 @@ function selPlay(){if(sel)play(sel[0],sel[1]-sel[0])}
 function tick(){draw();if(playing&&pos()<bufs[vocal].duration-0.01)requestAnimationFrame(tick);else if(playing&&!(loop&&sel))stop()}
 
 // ---- vågform
+const categories=[
+  [/back(?:ing)?\s*(?:vocal|vox)|background\s*(?:vocal|vox)|bakgrunds|harmony|choir|\bbgv\b/i,1,"Bakgrundssång"],
+  [/lead\s*(?:vocal|vox)|vocal|\bvox\b|sång/i,0,"Huvudsång"],
+  [/drum|trumm/i,2,"Trummor"],[/percussion|slagverk/i,3,"Percussion"],
+  [/bass|\bbas\b/i,4,"Bas"],[/guitar|gitarr/i,5,"Gitarr"],
+  [/piano|keyboard|keys|klaviatur/i,6,"Klaviatur"],[/synth/i,7,"Synth"],
+  [/string|stråk/i,8,"Stråkar"],[/brass|wind|blås/i,9,"Blås"],[/\bfx\b|effect|effekt/i,10,"Effekter"]
+];
+function stemCategory(name){
+  const normalized=name.replace(/[_-]+/g," ");
+  let match=categories.find(([r])=>r.test(normalized));
+  if(!match){const title=(metaInfo[name]?.fields||[]).find(f=>f.key==="TrackTitle")?.value||"";match=categories.find(([r])=>r.test(title))}
+  return {rank:match?.[1]??11,label:match?.[2]??"Övrigt"};
+}
+function compareStems(a,b){
+  const category=stemCategory(a).rank-stemCategory(b).rank;if(category)return category;
+  return a.localeCompare(b,"sv",{numeric:true,sensitivity:"base"});
+}
+const metadataLabels={TrackTitle:"Titel",TrackArtist:"Artist",AlbumTitle:"Album",AlbumArtist:"Albumartist",RecordingDate:"År / datum",Genre:"Genre",TrackNumber:"Spårnummer",DiscNumber:"Skivnummer",Comment:"Kommentar",CopyrightMessage:"Copyright",EncoderSoftware:"Programvara",EncodedBy:"Kodad av",Isrc:"ISRC",UnsyncLyrics:"Låttext"};
+function metadataFields(){return tracks[vocal]?.metadata?.fields||(metaInfo[vocal]?.fields||[]).filter(f=>f.editable).map(({key,value})=>({key,value}))}
+function setMetadata(fields,clear=tracks[vocal]?.metadata?.clear||false){
+  if(!vocal||saving)return;stashTrack();tracks[vocal].metadata={fields:fields.map(({key,value})=>({key,value})),clear};saveState();
+}
+function renderMetadata(){
+  const info=metaInfo[vocal]||{fields:[],pictures:0,binary:0},override=tracks[vocal]?.metadata;
+  $("#metaSummary").textContent=info.error?"Metadata kunde inte läsas: "+info.error:
+    `${info.fields.length} tolkade textfält · ${info.pictures} inbäddade bilder · ${info.binary} binära fält`+((info.formats||[]).length?" · "+info.formats.join(", "):"")+(override?.clear?". Originalmetadata rensas vid export.":"");
+  $("#metaFields").replaceChildren();
+  for(const [i,f] of metadataFields().entries()){
+    const row=document.createElement("div");row.className="meta-row";
+    const label=document.createElement("label"),input=document.createElement("textarea"),remove=document.createElement("button");
+    input.id="metadata-"+i;label.htmlFor=input.id;label.textContent=metadataLabels[f.key]||f.key;
+    input.value=f.value;input.rows=f.value.includes("\n")?3:1;
+    input.oninput=()=>{const fields=metadataFields().map(f=>({...f}));fields[i].value=input.value;setMetadata(fields)};
+    remove.textContent="Ta bort";remove.onclick=()=>{const fields=metadataFields().slice();fields.splice(i,1);setMetadata(fields);renderMetadata()};
+    row.append(label,input,remove);$("#metaFields").append(row);
+  }
+  for(const f of info.fields.filter(f=>!f.editable)){
+    const p=document.createElement("p");p.textContent=`${f.key}: ${f.value} (visas endast; kan inte skrivas till WAV)`;$("#metaFields").append(p);
+  }
+  $("#metaKey").replaceChildren(...Object.entries(metadataLabels).map(([key,label])=>{const o=document.createElement("option");o.value=key;o.textContent=label;return o}));
+}
+function addMetadata(){if(!vocal||saving)return;const fields=metadataFields().slice();fields.push({key:$("#metaKey").value,value:""});setMetadata(fields);renderMetadata();$("#metadataPanel").open=true}
+function clearMetadata(){if(!vocal||saving)return;setMetadata([],true);renderMetadata()}
+function resetMetadata(){if(!vocal||saving)return;stashTrack();delete tracks[vocal].metadata;renderMetadata();saveState()}
+
 function projectDuration(){return Math.max(0,...Object.values(bufs).map(b=>b.duration))}
 function buildTracks(){
   trackCanvases.clear();peakCache.clear();$("#tracks").replaceChildren();
   for(const n of names){
     const row=document.createElement("section");row.className="track";
     const label=document.createElement("header"),button=document.createElement("button");
-    button.textContent=n;button.onclick=()=>setVocal(n);label.append(button);row.append(label);
+    button.textContent=n;button.onclick=()=>{if(!saving)setVocal(n)};label.append(button);const category=document.createElement("small");category.textContent=stemCategory(n).label;label.append(category);row.append(label);
     const c=document.createElement("canvas");c.className="wave";c.title="Klicka eller dra för att redigera detta spår";
-    c.onmousedown=e=>{if(n!==vocal)setVocal(n);wf=c;mouseDown(e)};
+    c.onmousedown=e=>{if(saving)return;if(n!==vocal){const before=c.getBoundingClientRect().top;setVocal(n);const shift=c.getBoundingClientRect().top-before;if(shift)window.scrollBy(0,shift)}wf=c;mouseDown(e)};
     c.onmousemove=mouseMove;c.onwheel=wheel;row.append(c);$("#tracks").append(row);trackCanvases.set(n,c);
   }
 }
@@ -141,6 +207,7 @@ function sampleGain(t,frame,sr,length){
 }
 function draw(){
   if(!vocal)return;
+  $("#selectionReadout").textContent=sel?`${sel[0].toFixed(2)}–${sel[1].toFixed(2)} s · ${(sel[1]-sel[0]).toFixed(2)} s`:"Ingen markering";
   const canvases=trackCanvases.size?[...trackCanvases]:[[vocal,wf]];
   for(const [name,c] of canvases){
     const g=c.getContext("2d"),W=c.width=c.clientWidth,H=c.height=c.clientHeight;
@@ -161,10 +228,10 @@ function draw(){
       sugg.forEach(s=>{g.fillStyle=s.state==="avvisad"?"#8883":s.state==="godkänd"?"#2a62":"#fb34";g.fillRect(x(s.start),0,x(s.end)-x(s.start),H)});
       if(sel){g.fillStyle="#4af5";g.fillRect(x(sel[0]),0,x(sel[1])-x(sel[0]),H)}
     }
-    g.fillStyle=name===vocal?"#6a9cff":"#8393ad";
+    g.fillStyle=name===vocal?"#41d6b4":(["#41d6b4","#69b9b5","#c3a376","#ac9077","#a794d9","#7ca5d1","#7cae9c","#819ccc"][stemCategory(name).rank]||"#8b9aaf");
     for(let px=0;px<W;px++){const mn=cache.peaks[px*2],mx=cache.peaks[px*2+1];g.fillRect(px,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}
     g.fillStyle="#f55";g.fillRect(x(pos()),0,2,H);
-    g.fillStyle="#888";g.font="11px sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12);
+    g.fillStyle="#8092a5";g.font="11px Segoe UI, sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12);
   }
 }
 let wf=$("#wf");const tAt=e=>view.a+e.offsetX/(e.currentTarget||wf).clientWidth*(view.b-view.a);
@@ -196,16 +263,16 @@ function rejS(i){sugg[i].state="avvisad";renderSugg();draw()}
 function saveState(message){
   if(window.ipc)window.ipc.postMessage(projectDirty()?"dirty":"clean");
   $("#save").disabled=!vocal||saving;$("#projectSave").disabled=!vocal||saving;
-  $("#saveStatus").textContent=message||(JSON.stringify(edits)!==savedEdits?"Osparade ändringar":"Inga osparade ändringar");
+  $("#saveStatus").textContent=message||(audioFingerprint()!==savedEdits?"Osparade ändringar":"Inga osparade ändringar");
 }
 async function saveWav(){
   if(!vocal||saving)return;
   if(!/Windows/i.test(navigator.userAgent)){await exportWav();return}
-  saving=true;$("#vsel").disabled=true;$("#f").disabled=true;const snapshot=JSON.stringify(edits);saveState("Välj var sångspåret ska sparas…");
+  saving=true;$("#vsel").disabled=true;$("#f").disabled=true;const snapshot=JSON.stringify(edits),metadata=tracks[vocal]?.metadata,signature=audioFingerprint();saveState("Välj var spåret ska sparas…");
   try{
-    const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot)})});
+    const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot),metadata})});
     if(!r.ok)throw new Error(await r.text());
-    const j=await r.json();if(!j.cancelled){savedEdits=snapshot;saveState(JSON.stringify(edits)===snapshot?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
+    const j=await r.json();if(!j.cancelled){savedEdits=signature;saveState(audioFingerprint()===signature?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
   }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false}
 }
 async function saveProject(){
@@ -213,7 +280,7 @@ async function saveProject(){
   stashTrack();const snapshot=JSON.stringify(tracks),fingerprint=projectFingerprint();saving=true;saveState("Sparar projekt…");
   $("#vsel").disabled=true;$("#f").disabled=true;
   try{
-    const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:1,tracks:JSON.parse(snapshot)})});
+    const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:2,tracks:JSON.parse(snapshot)})});
     if(!r.ok)throw new Error(await r.text());
     if(/Windows/i.test(navigator.userAgent)){
       const j=await r.json();if(j.cancelled){saveState("Sparandet avbröts.");return}
@@ -230,7 +297,7 @@ addEventListener("beforeunload",e=>{if(projectDirty()){e.preventDefault();e.retu
 
 // ---- export (nytt filnamn, originalet orört)
 async function exportWav(){
-  if(!vocal)return;const r=await fetch(`/api/export/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits})});
+  if(!vocal)return;const r=await fetch(`/api/export/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits,metadata:tracks[vocal]?.metadata})});
   if(!r.ok){alert("Export misslyckades");return}
   const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());
   a.download=(r.headers.get("content-disposition")||"").match(/filename="?([^";]+)/)?.[1]||"cleaned.wav";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}

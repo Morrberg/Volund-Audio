@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(child){child.parentElement=this;this.children.push(child)},replaceChildren(){this.children=[]},getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
+function element(){return {disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(){this.children=[]},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
 const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
  document:{createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
@@ -25,5 +25,17 @@ assert.equal(await run('vocal'),'Drums.wav');assert.equal(await run('view.b'),10
 assert.equal(await run('sampleGain([{kind:"mute",start:1,end:2,fade:0.01}],150,100,1000)'),0);
 assert.equal(await run(`editedBuffer('Vocals.wav')===bufs['Vocals.wav']`),false);
 await run(`stashTrack();const reopened=JSON.parse(JSON.stringify(tracks));tracks=reopened;vocal=null;setVocal('Vocals.wav');`);assert.equal(await run('edits.length'),2);
+assert.equal(await run("editorPanel.parentElement===trackCanvases.get('Vocals.wav').parentElement"),true);
+await run(`const order=['10 Guitar.wav','2 Guitar.wav','Bass.wav','Drums.wav','Backing Vocals.wav','Lead Vocals.wav'];order.sort(compareStems);`);
+assert.equal(await run('order.join("|")'),'Lead Vocals.wav|Backing Vocals.wav|Drums.wav|Bass.wav|2 Guitar.wav|10 Guitar.wav');
+await run(`metaInfo['Vocals.wav']={fields:[{key:'TrackTitle',value:'Original',editable:true}],pictures:1,binary:0};setMetadata([{key:'TrackTitle',value:'Ändrad titel'}]);`);
+assert.equal(await run('metadataFields()[0].value'),'Ändrad titel');
+await run(`setVocal('Drums.wav');setVocal('Vocals.wav');`);assert.equal(await run('metadataFields()[0].value'),'Ändrad titel');
+await run(`fetch=async(url,options)=>{globalThis.lastRequest=JSON.parse(options.body);return {ok:true,json:async()=>({cancelled:false,name:'saved.wav'})}};saveWav();`);
+// Wait for the async save to settle before verifying the saved fingerprint.
+await run('Promise.resolve()');assert.equal(await run('lastRequest.metadata.fields[0].value'),'Ändrad titel');
+await run('clearMetadata()');assert.equal(await run('metadataFields().length'),0);assert.equal(await run('tracks[vocal].metadata.clear'),true);
+await run('resetMetadata()');assert.equal(await run('metadataFields()[0].value'),'Original');
+await run(`buildTracks();setVocal('Vocals.wav');`);assert.equal(await run("editorPanel.parentElement===trackCanvases.get('Vocals.wav').parentElement"),true);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});

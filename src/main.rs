@@ -1,6 +1,8 @@
 //! Vocal Cleaner: eget Windows-fönster, lokal ljudbehandling.
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
+mod metadata;
+
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, HeaderName, StatusCode},
@@ -156,7 +158,7 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
 #[derive(Deserialize)]
 struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32 }
 #[derive(Deserialize)]
-struct ExportReq { stem: String, edits: Vec<Edit> }
+struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes> }
 
 async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): Json<ExportReq>)
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
@@ -193,7 +195,7 @@ async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): J
     let stem_name = FsPath::new(&name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     Ok(([(header::CONTENT_TYPE, "audio/wav".to_string()),
          (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{stem_name}_cleaned.wav\""))],
-        buf.into_inner()))
+        metadata::apply(&sess(&root, &sid)?.join(&name), buf.into_inner(), r.metadata.as_ref()).map_err(bad)?))
 }
 
 async fn serve(ready: std::sync::mpsc::Sender<String>) {
@@ -201,9 +203,11 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
     fs::create_dir_all(&dir).expect("kan inte skapa arbetsmapp");
     let app = Router::new()
         .route("/", get(|| async { Html(INDEX) }))
+        .route("/icon.svg", get(|| async { ([(header::CONTENT_TYPE, "image/svg+xml")], include_str!("../assets/icon.svg")) }))
         .route("/api/upload", post(upload))
         .route("/api/stem/:sid/:name", get(stem))
         .route("/api/analyze/:sid/:name", get(analyze))
+        .route("/api/metadata/:sid/:name", get(inspect_metadata))
         .route("/api/export/:sid", post(export))
         .route("/api/save/:sid", post(save))
         .route("/api/project/:sid", post(save_project))
@@ -245,12 +249,20 @@ fn main() {
         tokio::runtime::Runtime::new().expect("kan inte starta ljudserver").block_on(serve(tx));
     });
     let url = rx.recv().expect("ljudservern kunde inte starta");
+    // CI uses the same embedded UI and API without needing an interactive desktop.
+    if let Ok(path) = std::env::var("VOCAL_CLEANER_TEST_URL_FILE") {
+        fs::write(path, &url).expect("kan inte lämna serveradressen till UI-testet");
+    }
+    if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
+        loop { std::thread::park(); }
+    }
     #[cfg(target_os = "windows")]
     {
         use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new().with_title("Vocal Cleaner")
-            .with_inner_size(tao::dpi::LogicalSize::new(1200.0, 720.0))
+            .with_inner_size(tao::dpi::LogicalSize::new(1320.0, 860.0))
+            .with_window_icon(tao::window::Icon::from_rgba(include_bytes!("../assets/icon.rgba").to_vec(), 64, 64).ok())
             .build(&event_loop).expect("kan inte skapa programfönster");
         let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ipc_dirty = dirty.clone();
@@ -327,4 +339,10 @@ mod tests {
         assert!(archive.by_name("Drums.wav").is_ok());
         fs::remove_dir_all(dir).unwrap();
     }
+}
+
+async fn inspect_metadata(State(root): State<PathBuf>, Path((sid, name)): Path<(String, String)>) -> R<Json<Value>> {
+    let path = sess(&root, &sid)?.join(fname(&name));
+    let info = tokio::task::spawn_blocking(move || metadata::inspect(&path)).await.map_err(bad)?.map_err(bad)?;
+    Ok(Json(info))
 }
