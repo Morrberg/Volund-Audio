@@ -37,5 +37,15 @@ await run('Promise.resolve()');assert.equal(await run('lastRequest.metadata.fiel
 await run('clearMetadata()');assert.equal(await run('metadataFields().length'),0);assert.equal(await run('tracks[vocal].metadata.clear'),true);
 await run('resetMetadata()');assert.equal(await run('metadataFields()[0].value'),'Original');
 await run(`buildTracks();setVocal('Vocals.wav');`);assert.equal(await run("editorPanel.parentElement===trackCanvases.get('Vocals.wav').parentElement"),true);
+await run(`mastering=restoreMaster();mastering.title='Låt 1';mastering.profiles.Vinyl.bass_db=-1.5;mixChange('Drums.wav','gain_db',-3);mixChange('Vocals.wav','solo',true);renderMaster();`);
+assert.equal(await run(`masterRequest().tracks.find(t=>t.stem==='Drums.wav').gain_db`),-3);
+assert.equal(await run(`masterRequest().tracks.find(t=>t.stem==='Vocals.wav').solo`),true);
+assert.equal(await run(`masterRequest(['Vinyl']).profiles[0].bass_db`),-1.5);
+await run(`fetch=async(url,options)=>{globalThis.lastRequest=JSON.parse(options.body);return {ok:true,json:async()=>({cancelled:false})}};saveProject();`);
+await run('Promise.resolve()');assert.equal(await run('lastRequest.version'),3);assert.equal(await run('lastRequest.mastering.profiles.Vinyl.bass_db'),-1.5);
+await run(`mastering=restoreMaster(lastRequest.mastering);tracks=lastRequest.tracks;projectSaved=projectFingerprint();chooseProfile('Vinyl');`);assert.equal(await run('selectedProfile().bass_db'),-1.5);assert.equal(await run('projectDirty()'),true);
+await run(`masterNormalize(false);`);assert.equal(await run('selectedProfile().target_lufs'),null);
+await run(`chooseProfile('CD');masterPreset('Tryck');`);assert.equal(await run('selectedProfile().sample_rate'),44100);assert.equal(await run('selectedProfile().bits'),16);assert.equal(await run('selectedProfile().target_lufs'),-10);assert.equal(await run('mastering.profiles.Vinyl.bass_db'),-1.5);
+await run(`sideTracks=[{stem:'Song.wav',side:'A',gap:2}];sideDurations={'Song.wav':60};document.querySelector('#sideTitle').value='Album';document.querySelector('#sideRate').value='44100';document.querySelector('#sideBits').value='24';sideSaved=JSON.stringify(sideRequest());sideTracks[0].side='B';`);assert.equal(await run('sideDirty()'),true);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});

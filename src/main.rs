@@ -294,6 +294,9 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
     -> R<axum::response::Response> {
     use axum::response::IntoResponse;
     let bytes = project_zip(&sess(&root, &sid)?, &project)?;
+    if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
+        return Ok(([(header::CONTENT_TYPE, "application/zip")], bytes).into_response());
+    }
     #[cfg(target_os = "windows")]
     {
         let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()
