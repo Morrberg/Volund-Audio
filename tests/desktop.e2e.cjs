@@ -110,7 +110,6 @@ function wav(freq){
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('button',{name:'2 Guitar.wav',exact:true}).click();
   await page.evaluate(()=>{sel=[1,3];draw()});
-  console.log('Pan controls:',await page.evaluate(()=>({vocal,saving,connected:editorPanel.isConnected,panLeft:!!document.querySelector('#panLeft'),panel:editorPanel.outerHTML.slice(0,300),errors:document.querySelector('#masterStatus').textContent})));
   await page.locator('#panLeft').click();
   const panned=await page.evaluate(async()=>{
     const preview=editedBuffer(vocal),r=await fetch(`/api/export/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stem:vocal,edits})});if(!r.ok)throw new Error(await r.text());const sound=await ctx.decodeAudioData(await r.arrayBuffer());let right=0,left=0,error=0;
