@@ -78,18 +78,22 @@ let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
 $("#f").onchange=async e=>{
-  if(vocal&&projectDirty()&&!confirm("Öppna nya filer och lämna det nuvarande projektet? Osparade projektändringar försvinner."))return;
-  stop();vocal=null;
-  const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
-  const r=await fetch("/api/upload",{method:"POST",body:fd});
-  if(!r.ok){alert("Uppladdning misslyckades");return}
-  const j=await r.json();sid=j.sid;names=j.stems;bufs={};metaInfo={};vocal=null;tracks=j.project?.tracks||{};mastering=restoreMaster(j.project?.mastering);invalidateMaster();projectSaved=projectFingerprint();
-  for(const n of names)bufs[n]=await ctx.decodeAudioData(await(await fetch(`/api/stem/${sid}/${encodeURIComponent(n)}`)).arrayBuffer());
-  await Promise.all(names.map(async n=>{try{const r=await fetch(`/api/metadata/${sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());metaInfo[n]=await r.json()}catch(e){metaInfo[n]={error:e.message,fields:[],pictures:0,binary:0}}}));
-  names.sort(compareStems);
-  const s=$("#vsel");s.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
-  editedBuffers.clear();buildTracks();renderMaster();s.value=j.vocal||names[0];setVocal(s.value);
-  $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
+  if(saving||!e.target.files.length)return;stashTrack();
+  if(vocal&&projectFingerprint()!==projectSaved&&!confirm("Öppna nya filer och lämna det nuvarande projektet? Osparade projektändringar försvinner."))return;
+  stop();stopMaster();masterBusy(true,'Öppnar stems och projekt…');
+  try{
+    const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
+    const r=await fetch("/api/upload",{method:"POST",body:fd});if(!r.ok)throw new Error(await r.text());
+    const j=await r.json(),loaded={},info={};
+    for(const n of j.stems){const r=await fetch(`/api/stem/${j.sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());loaded[n]=await ctx.decodeAudioData(await r.arrayBuffer())}
+    await Promise.all(j.stems.map(async n=>{try{const r=await fetch(`/api/metadata/${j.sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());info[n]=await r.json()}catch(e){info[n]={error:e.message,fields:[],pictures:0,binary:0}}}));
+    vocal=null;sid=j.sid;names=j.stems;bufs=loaded;metaInfo=info;tracks=j.project?.tracks||{};mastering=restoreMaster(j.project?.mastering);invalidateMaster();projectSaved=projectFingerprint();
+    names.sort(compareStems);const select=$("#vsel");select.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
+    editedBuffers.clear();buildTracks();renderMaster();select.value=j.vocal||names[0];setVocal(select.value);
+    $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
+    $('#masterStatus').textContent='Välj en profil och analysera mixen.';
+  }catch(e){$('#masterStatus').textContent='Kunde inte öppna: '+e.message}
+  finally{masterBusy(false)}
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
 function stashTrack(){if(vocal)tracks[vocal]={...tracks[vocal],edits:edits.slice(),redo:redo.slice(),savedEdits};}
@@ -295,7 +299,7 @@ async function saveWav(){
     const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot),metadata})});
     if(!r.ok)throw new Error(await r.text());
     const j=await r.json();if(!j.cancelled){savedEdits=signature;saveState(audioFingerprint()===signature?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
-  }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false}
+  }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false;saveState($("#saveStatus").textContent)}
 }
 async function saveProject(){
   if(!vocal||saving)return;
@@ -311,7 +315,7 @@ async function saveProject(){
     }
     projectSaved=fingerprint;saveState(projectDirty()?"Projekt sparat. Det finns nya osparade ändringar.":"Projekt sparat – alla stems och redigeringar finns kvar.");
   }catch(e){saveState("Kunde inte spara projekt: "+e.message)}finally{
-    saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;
+    saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;saveState($("#saveStatus").textContent);
   }
 }
 addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveWav()}});
@@ -370,7 +374,7 @@ async function exportMasters(batch){if(!sid||saving)return;const ids=batch?maste
 
 let sideSession=null,sideTracks=[],sideDurations={},sideSaved='';
 function sideDirty(){return !!sideTracks.length&&JSON.stringify(sideRequest())!==sideSaved}
-async function loadSides(files){if(!files.length||saving)return;if(sideDirty()&&!confirm('Öppna nya låtar och lämna osparat sidprojekt?'))return;$('#sideStatus').textContent='Öppnar låtar…';$('#sideFiles').disabled=true;try{const fd=new FormData();for(const f of files)fd.append('files',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok)throw new Error(await r.text());const data=await r.json();sideSession=data.sid;sideTracks=data.project?.sideAssembly?.tracks||data.stems.sort((a,b)=>a.localeCompare(b,'sv',{numeric:true})).map(stem=>({stem,side:'A',gap:2}));if(data.project?.sideAssembly){$('#sideTitle').value=data.project.sideAssembly.title;$('#sideRate').value=data.project.sideAssembly.sample_rate;$('#sideBits').value=data.project.sideAssembly.bits}sideDurations={};for(const name of data.stems){const r=await fetch(`/api/stem/${sideSession}/${encodeURIComponent(name)}`);const audio=await ctx.decodeAudioData(await r.arrayBuffer());sideDurations[name]=audio.duration}renderSides();sideSaved=data.project?.sideAssembly?JSON.stringify(sideRequest()):'';saveState();$('#sideSave').disabled=false;$('#sideProjectSave').disabled=false;$('#sideStatus').textContent='Låtar öppnade.'}catch(e){$('#sideStatus').textContent='Kunde inte öppna: '+e.message}finally{$('#sideFiles').disabled=false}}
+async function loadSides(files){if(!files.length||saving)return;if(sideDirty()&&!confirm('Öppna nya låtar och lämna osparat sidprojekt?'))return;masterBusy(true);$('#sideStatus').textContent='Öppnar låtar…';try{const fd=new FormData();for(const f of files)fd.append('files',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok)throw new Error(await r.text());const data=await r.json();sideSession=data.sid;sideTracks=data.project?.sideAssembly?.tracks||data.stems.sort((a,b)=>a.localeCompare(b,'sv',{numeric:true})).map(stem=>({stem,side:'A',gap:2}));if(data.project?.sideAssembly){$('#sideTitle').value=data.project.sideAssembly.title;$('#sideRate').value=data.project.sideAssembly.sample_rate;$('#sideBits').value=data.project.sideAssembly.bits}sideDurations={};for(const name of data.stems){const r=await fetch(`/api/stem/${sideSession}/${encodeURIComponent(name)}`);const audio=await ctx.decodeAudioData(await r.arrayBuffer());sideDurations[name]=audio.duration}renderSides();sideSaved=data.project?.sideAssembly?JSON.stringify(sideRequest()):'';saveState();$('#sideSave').disabled=false;$('#sideProjectSave').disabled=false;$('#sideStatus').textContent='Låtar öppnade.'}catch(e){$('#sideStatus').textContent='Kunde inte öppna: '+e.message}finally{masterBusy(false)}}
 function sideRequest(){return {title:$('#sideTitle').value,sample_rate:+$('#sideRate').value,bits:+$('#sideBits').value,tracks:sideTracks}}
 function renderSides(){$('#sideTracks').replaceChildren();sideTracks.forEach((t,i)=>{const row=document.createElement('div'),name=document.createElement('span'),side=document.createElement('select'),gap=document.createElement('input');row.className='side-row';name.textContent=(i+1)+'. '+t.stem;for(const value of ['A','B']){const o=document.createElement('option');o.value=value;o.textContent='Sida '+value;side.append(o)}side.value=t.side;side.setAttribute('aria-label','Sida för '+t.stem);side.onchange=()=>{t.side=side.value;sideLengths()};gap.type='number';gap.min=0;gap.max=30;gap.step=.1;gap.value=t.gap;gap.title='Sekunder före låten, utom sidans första';gap.setAttribute('aria-label','Mellanrum före '+t.stem);gap.onchange=()=>{const value=+gap.value;t.gap=Number.isFinite(value)?Math.max(0,Math.min(30,value)):0;gap.value=t.gap;sideLengths()};row.append(name,side,gap);for(const [text,offset] of [['↑',-1],['↓',1]]){const b=document.createElement('button');b.textContent=text;b.disabled=i+offset<0||i+offset>=sideTracks.length;b.onclick=()=>{[sideTracks[i],sideTracks[i+offset]]=[sideTracks[i+offset],sideTracks[i]];renderSides()};row.append(b)}$('#sideTracks').append(row)});sideLengths()}
 function sideLengths(){const strings=['A','B'].map(side=>{const tracks=sideTracks.filter(t=>t.side===side);const seconds=tracks.reduce((sum,t,i)=>sum+(sideDurations[t.stem]||0)+(i?t.gap:0),0);return `Sida ${side}: ${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')} · ${tracks.length} låtar`});$('#sideDuration').textContent=strings.join(' · ');saveState()}

@@ -26,10 +26,10 @@ function wav(freq){
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.locator('#f').setInputFiles(paths);
   await page.locator('section.track').nth(3).waitFor();
-  assert.deepEqual(await page.locator('section.track header button').allTextContents(),['1 Lead Vocals.wav','Drums.wav','2 Guitar.wav','10 Guitar.wav']);
+  assert.deepEqual(await page.locator('section.track header > button').allTextContents(),['1 Lead Vocals.wav','Drums.wav','2 Guitar.wav','10 Guitar.wav']);
   assert.ok(await page.locator('section.track.active #transport').isVisible());
   await page.getByRole('button',{name:'Drums.wav',exact:true}).click();
-  assert.equal(await page.locator('section.track.active header button').textContent(),'Drums.wav');
+  assert.equal(await page.locator('section.track.active header > button').textContent(),'Drums.wav');
   assert.ok(await page.locator('section.track.active #transport').isVisible());
   await page.locator('#metadataPanel summary').click();
   await page.getByLabel('Titel',{exact:true}).fill('Ändrad titel – Chaoswrought');
