@@ -98,11 +98,45 @@ pub fn measure(y: &[f32], sr: u32) -> Result<Metrics, String> {
     Ok(Metrics{lufs,true_peak_db:db(peak),lra,crest_db:if rms>1e-15 { db(sample_peak/rms) } else {None},correlation:if ll*rr>1e-20 {Some((lr/(ll*rr).sqrt()).clamp(-1.,1.))}else{None},bass_side_ratio:bass_side/(bass_mid+bass_side+1e-30),treble_ratio:treble/(squares+1e-30),duration:y.len() as f64/2./sr as f64})
 }
 
-pub fn apply_edits(y: &mut [f32], sr: u32, ch: usize, edits: &[Edit]) -> Result<(), String> {
+/// Mono is promoted only when panning is requested. Untouched samples keep their original stereo position.
+pub fn render_edits(mut y: Vec<f32>, sr: u32, ch: usize, edits: &[Edit]) -> Result<(Vec<f32>,usize), String> {
+    let mono=ch==1;
+    let channels=if edits.iter().any(|e|e.kind=="pan") {
+        if !(1..=2).contains(&ch) {return Err("Panorering stöder mono och stereo".into())}
+        if mono {y=y.into_iter().flat_map(|v|[v,v]).collect();}2
+    } else {ch};
+    apply_edits(&mut y,sr,channels,mono,edits)?;Ok((y,channels))
+}
+fn pan_frame(l:f64,r:f64,p:f64,mono:bool)->(f64,f64) {
+    if p==0. {return (l,r)}
+    if mono && p<=-1. {return ((l+r)*0.5*2f64.sqrt(),0.)}if mono && p>=1. {return (0.,(l+r)*0.5*2f64.sqrt())}
+    if mono {let angle=(p+1.)*PI/4.;let source=(l+r)*0.5;return (source*2f64.sqrt()*angle.cos(),source*2f64.sqrt()*angle.sin())}
+    if p<=-1. {return (l+r,0.)}if p>=1. {return (0.,r+l)}
+    if p<0. {let angle=(p+1.)*PI/2.;(l+r*angle.cos(),r*angle.sin())}
+    else {let angle=p*PI/2.;(l*angle.cos(),r+l*angle.sin())}
+}
+fn apply_edits(y: &mut [f32], sr: u32, ch: usize, mono: bool, edits: &[Edit]) -> Result<(), String> {
+    if ch==0 {return Err("Ljudet saknar kanaler".into())}
     let frames=y.len()/ch;
-    for e in edits {
-        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+    let mut pan_base:Option<Vec<f32>>=None;
+    let pans=edits.iter().enumerate().filter(|(i,e)|e.kind=="pan"&&!edits[i+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end)).map(|(_,e)|e);
+    for e in edits.iter().filter(|e|e.kind!="pan").chain(pans) {
+        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+        if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
+        if e.kind=="pan" {
+            let edge=((e.fade as f64*sr as f64).round() as usize).min((n-1)/2);
+            let base=pan_base.get_or_insert_with(||y.to_vec());
+            for i in 0..n {
+                let t=if n>1 {i as f64/(n-1) as f64}else{0.};
+                let t=if e.pan_cycles>0 {(1.-(2.*PI*e.pan_cycles as f64*t).cos())*0.5}else{t};
+                let p=e.pan_from as f64+(e.pan_to as f64-e.pan_from as f64)*t;
+                let weight=if edge>0 {(i as f64/edge as f64).min((n-1-i) as f64/edge as f64).min(1.)}else{1.};
+                let j=(a+i)*2;let (l,r)=(y[j] as f64,y[j+1] as f64);let (pl,pr)=pan_frame(base[j] as f64,base[j+1] as f64,p,mono);
+                y[j]=(l+(pl-l)*weight) as f32;y[j+1]=(r+(pr-r)*weight) as f32;
+            }
+            continue;
+        }
         let mut at=|i:usize,g:f32|{for c in 0..ch {y[i*ch+c]*=g}};
         match e.kind.as_str() {
             "fadein"=>for i in 0..n {at(a+i,i as f32/n as f32)},
@@ -141,7 +175,7 @@ fn mix(dir: &FsPath, tracks: &[MixTrack], sr: u32) -> Result<Vec<f32>, String> {
     for t in tracks {
         if fname(&t.stem)!=t.stem || !crate::is_audio(&t.stem) || !seen.insert(&t.stem) {return Err("Ogiltigt eller dubblerat spårnamn".into())}
         if !t.gain_db.is_finite() || !(-60. ..=12.).contains(&t.gain_db) {return Err("Spårnivån måste vara −60 till +12 dB".into())}
-        let (mut y,rate,ch)=decode(&dir.join(&t.stem))?;apply_edits(&mut y,rate,ch,&t.edits)?;
+        let (y,rate,ch)=decode(&dir.join(&t.stem))?;let (y,ch)=render_edits(y,rate,ch,&t.edits)?;
         let y=stereo_resample(&y,rate,ch,sr)?;
         // Muted/solo-excluded tracks still determine the full mix duration.
         out.resize(out.len().max(y.len()),0.);
@@ -353,7 +387,31 @@ mod tests {
     #[test]fn limiter_handles_impulses_and_high_frequency(){let mut y=sine(44100,3.,18000.,1.4);y[1000]=5.;y[1001]=-4.;let mut p=profile("Spotify");p.target_lufs=None;p.compression=0.;let(_,r)=process(&y,&p).unwrap();assert!(r.output.true_peak_db.unwrap()<=-1.);assert!(r.limiter_reduction_db>0.);}
     #[test]fn resampler_keeps_duration_and_rejects_aliases(){let source=sine(48000,1.,1000.,0.5);let out=stereo_resample(&source,48000,2,44100).unwrap();assert_eq!(out.len(),88200);assert!((measure(&source,48000).unwrap().lufs.unwrap()-measure(&out,44100).unwrap().lufs.unwrap()).abs()<0.1);let high=stereo_resample(&sine(96000,1.,30000.,0.5),96000,2,44100).unwrap();let rms=(high.iter().skip(1000).take(80000).map(|v|(*v as f64).powi(2)).sum::<f64>()/80000.).sqrt();assert!(rms<0.01);}
     #[test]fn mono_bass_reduces_antiphase_and_compressor_preserves_stereo(){let mut y=sine(44100,2.,40.,0.5);for f in y.chunks_exact_mut(2){f[1]=-f[0]}let before=measure(&y,44100).unwrap();let mut p=profile("Vinyl");p.mono_bass_hz=150.;tone(&mut y,&p);let power=y.iter().map(|v|(*v as f64).powi(2)).sum::<f64>();let original=sine(44100,2.,40.,0.5).iter().map(|v|(*v as f64).powi(2)).sum::<f64>();assert!(power/original<0.1);assert!(before.bass_side_ratio>0.9);let mut stereo=sine(44100,2.,1000.,0.8);compress(&mut stereo,&p);assert!(stereo.chunks_exact(2).all(|f|f[0]==f[1]));}
-    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
+    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01,..Default::default()}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
+    #[test]
+    fn panning_moves_both_channels_and_preserves_outside_samples() {
+        let original:Vec<f32>=(0..1000).flat_map(|_|[0.2,0.3]).collect();
+        let edit=Edit{kind:"pan".into(),start:0.2,end:0.8,fade:0.01,pan_from:-1.,pan_to:-1.,pan_cycles:0};
+        let (left,ch)=render_edits(original.clone(),1000,2,&[edit.clone()]).unwrap();assert_eq!(ch,2);assert_eq!(&left[..400],&original[..400]);assert_eq!(&left[1600..],&original[1600..]);assert_eq!(left[1001],0.);assert!((left[1000]-0.5).abs()<1e-6);assert_eq!(left[400],original[400]);assert_eq!(left[401],original[401]);
+        let center=Edit{pan_from:0.,pan_to:0.,..edit.clone()};let (reset,_)=render_edits(original.clone(),1000,2,&[edit.clone(),center]).unwrap();assert_eq!(reset,original);
+        let partial=Edit{start:0.4,end:0.6,pan_from:0.,pan_to:0.,..edit.clone()};let (blended,_)=render_edits(original.clone(),1000,2,&[edit.clone(),partial]).unwrap();assert_eq!(blended[801],0.);assert!((blended[1001]-0.3).abs()<1e-6);
+        let sweep=Edit{pan_to:1.,..edit};let (moving,_)=render_edits(original,1000,2,&[sweep]).unwrap();assert!(moving[440]>moving[441]);assert!(moving[1559]>moving[1558]);
+    }
+    #[test]
+    fn mono_pan_and_periodic_motion_preserve_length_and_energy() {
+        let original=vec![0.2;1000];let edit=Edit{kind:"pan".into(),start:0.2,end:0.8,fade:0.,pan_from:-1.,pan_to:1.,pan_cycles:2};
+        let (y,ch)=render_edits(original,1000,1,&[edit]).unwrap();assert_eq!(ch,2);assert_eq!(y.len(),2000);assert_eq!(y[400+1],0.);assert!(y[700+1]>y[700]);
+        for f in y.chunks_exact(2) {assert!(((f[0]*f[0]+f[1]*f[1])-0.08).abs()<1e-6)}
+        let invalid=Edit{kind:"pan".into(),start:0.,end:1.,pan_to:2.,..Default::default()};assert!(render_edits(vec![0.;2000],1000,2,&[invalid]).is_err());
+    }
+    #[test]
+    fn pan_is_isolated_to_its_stem_and_survives_master_export() {
+        let dir=std::env::temp_dir().join(format!("pan-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();
+        let source:Vec<f32>=(0..44100).flat_map(|_|[0.1,0.2]).collect();for name in ["Synth.wav","Vocals.wav"] {std::fs::write(dir.join(name),wav(&source,44100,24,true).unwrap()).unwrap();}
+        let track=|stem:&str,edits|MixTrack{stem:stem.into(),gain_db:0.,mute:false,solo:false,edits};let edit=Edit{kind:"pan".into(),start:0.2,end:0.8,fade:0.01,pan_from:-1.,pan_to:-1.,pan_cycles:0};
+        let y=mix(&dir,&[track("Synth.wav",vec![edit.clone()]),track("Vocals.wav",vec![])],44100).unwrap();assert!((y[44100]-0.4).abs()<1e-6);assert!((y[44101]-0.2).abs()<1e-6);
+        let r=Request{title:"Pan".into(),artist:"".into(),album:"".into(),tracks:vec![track("Synth.wav",vec![edit])],profiles:vec![profile("CD")]};let archive=render_batch(&dir,&r).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(archive)).unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut z.by_name("Pan - mastered - CD.wav").unwrap(),&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert_eq!(samples[44101],0);assert_ne!(samples[44100],0);std::fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn mixing_honors_gain_mute_solo_and_longest_duration() {
         let dir=std::env::temp_dir().join(format!("mix-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();

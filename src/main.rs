@@ -156,16 +156,17 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
     Ok(Json(json!({"duration": total, "suggestions": out})))
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32 }
+#[derive(Clone, Default, Deserialize, Serialize)]
+struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32,
+    #[serde(default)] pan_from: f32, #[serde(default)] pan_to: f32, #[serde(default)] pan_cycles: u16 }
 #[derive(Deserialize)]
 struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes> }
 
 async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): Json<ExportReq>)
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
     let name = fname(&r.stem);
-    let (mut y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
-    mastering::apply_edits(&mut y, sr, ch, &r.edits).map_err(bad)?;
+    let (y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
+    let (y, ch) = mastering::render_edits(y, sr, ch, &r.edits).map_err(bad)?;
     let spec = hound::WavSpec { channels: ch as u16, sample_rate: sr, bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float };
     let mut buf = Cursor::new(Vec::new());

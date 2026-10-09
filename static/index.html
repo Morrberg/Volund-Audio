@@ -17,7 +17,7 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
 
 .master-panel{margin:20px 0;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:16px}.master-panel>summary{font-size:17px;font-weight:650;cursor:pointer}.master-panel p{color:var(--muted);margin:8px 0}.master-panel fieldset{border:0;padding:0;margin:0;min-width:0}.master-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:14px 0}.master-grid label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}.master-grid input,.master-grid select{width:100%;min-width:0;border:1px solid var(--border);padding:8px;border-radius:6px}.master-grid input[type=checkbox]{width:auto}.profile-note{border-left:3px solid var(--ac);padding:8px 12px;background:var(--surface);border-radius:4px}.metrics{display:flex;flex-wrap:wrap;gap:12px}.metric{background:var(--surface);padding:10px 14px;border-radius:7px;min-width:130px}.metric strong{display:block;font-size:20px;color:var(--ac);font-variant-numeric:tabular-nums}.master-actions{border-top:1px solid var(--border);padding-top:12px;margin-top:14px}.mix-controls{display:flex;gap:7px;align-items:center;margin-left:auto}.mix-controls label{font-size:12px}.mix-controls input[type=number]{width:64px;padding:4px;border:1px solid var(--border);border-radius:4px}.track header .mix-controls button{border:1px solid var(--border);font-size:12px;padding:3px 8px}.mix-controls button[aria-pressed=true]{color:var(--ac);border-color:var(--ac)}.side-row{display:flex;gap:8px;align-items:center;margin:8px 0;padding:8px;background:var(--surface);border-radius:6px}.side-row span{flex:1;overflow-wrap:anywhere}.side-row input{width:65px}.master-warning{color:#dba567}.master-player{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.master-player input[type=range]{flex:1;min-width:130px}.master-panel h3{font-size:14px;margin:20px 0 8px}@media(max-width:900px){.track header{flex-wrap:wrap}.mix-controls{margin-left:0;width:100%}.master-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
-<header class="app-header"><div class="brand"><img src="/icon.svg" alt=""><div><h1>Vocal Cleaner</h1><p>STEM EDITOR · MIX · MASTERING</p></div></div><div><span class="version">v0.4</span><button id="themeButton" onclick="toggleTheme()" aria-label="Växla ljust och mörkt tema">Ljust tema</button></div></header>
+<header class="app-header"><div class="brand"><img src="/icon.svg" alt=""><div><h1>Vocal Cleaner</h1><p>STEM EDITOR · MIX · MASTERING</p></div></div><div><span class="version">v0.5</span><button id="themeButton" onclick="toggleTheme()" aria-label="Växla ljust och mörkt tema">Ljust tema</button></div></header>
 <div class="bar import-bar">
   <label class="file-button">＋ Öppna stems / projekt<input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip,.vcleaner"></label>
   <select id="vsel" title="Sångspår"></select>
@@ -60,6 +60,7 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
   <span class="separator" aria-hidden="true"></span><button onclick="undo()">Ångra</button><button onclick="redoE()">Gör om</button>
   <button onclick="ab()" id="abb">Visar: Redigerad</button>
 </div>
+<div class="bar pan-tools"><strong>Panorera markering</strong><button id="panLeft" onclick="addPan('left')">Vänster</button><button id="panCenter" onclick="addPan('center')">Center</button><button id="panRight" onclick="addPan('right')">Höger</button><button id="panSweepRight" onclick="addPan('lr')">Vänster → höger</button><button id="panSweepLeft" onclick="addPan('rl')">Höger → vänster</button><button id="panAlternate" onclick="addPan('alternate')">Pendla vänster ↔ höger</button><label>Varv <input id="panCycles" type="number" min="1" max="32" step="1" value="2" style="width:55px" aria-label="Antal panoreringens varv"></label><label>Position <input id="panPosition" type="range" min="-100" max="100" value="0" oninput="document.querySelector('#panValue').textContent=this.value+' %'" aria-label="Panoreringsposition"></label><span id="panValue">0 %</span><button id="panApply" onclick="addPan('custom')">Placera</button><small>Gäller bara valt spår och markering. Mjuka kanter · Center behåller den naturliga stereobilden.</small></div><div id="panEdits"></div>
 <details class="metadata" id="metadataPanel"><summary>Metadata för valt spår</summary>
 <p id="metaSummary"></p><div id="metaFields"></div>
 <div class="bar"><select id="metaKey" aria-label="Nytt metadatafält"></select><button onclick="addMetadata()">Lägg till fält</button><button onclick="clearMetadata()">Rensa metadata</button><button onclick="resetMetadata()">Återställ från original</button></div>
@@ -74,6 +75,7 @@ try{setTheme(localStorage.getItem("vocal-cleaner-theme")||"dark")}catch{}
 const editorPanel=$("#editorPanel");
 const trackCanvases=new Map(),peakCache=new Map(),editedBuffers=new Map();
 let metaInfo={};
+let panUndo=[];
 let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
@@ -96,18 +98,19 @@ $("#f").onchange=async e=>{
   finally{masterBusy(false)}
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
-function stashTrack(){if(vocal)tracks[vocal]={...tracks[vocal],edits:edits.slice(),redo:redo.slice(),savedEdits};}
+function stashTrack(){if(vocal)tracks[vocal]={...tracks[vocal],edits:edits.slice(),redo:redo.slice(),panUndo:panUndo.map(ops=>ops.slice()),savedEdits};}
 function projectFingerprint(){return JSON.stringify({tracks:Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length||tracks[n].metadata||tracks[n].gain_db||tracks[n].mute||tracks[n].solo).map(n=>[n,tracks[n].edits||[],tracks[n].metadata||null,tracks[n].gain_db||0,!!tracks[n].mute,!!tracks[n].solo]),mastering})}
 function audioFingerprint(){return tracks[vocal]?.metadata?JSON.stringify({edits,metadata:tracks[vocal].metadata}):JSON.stringify(edits)}
 function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved||sideDirty()}
 function setVocal(n){
-  const switching=!!vocal;stashTrack();stop();vocal=n;
+  const switching=!!vocal;stashTrack();
+  const row=trackCanvases.get(n)?.parentElement;if(row)row.append(editorPanel);
+  stop();vocal=n;
   const state=tracks[n]||{edits:[],redo:[],savedEdits:"[]"};
-  edits=state.edits.slice();redo=(state.redo||[]).slice();savedEdits=state.savedEdits||"[]";
+  edits=state.edits.slice();panUndo=(state.panUndo||[]).map(ops=>ops.slice());redo=(state.redo||[]).slice();savedEdits=state.savedEdits||"[]";
   sel=null;sugg=[];if(!switching)view={a:0,b:projectDuration()};
   wf=trackCanvases.get(n)||wf;$("#vsel").value=n;
   for(const [name,c] of trackCanvases)c.parentElement.classList.toggle("active",name===n);
-  const row=trackCanvases.get(n)?.parentElement;if(row)row.append(editorPanel);
   editorPanel.hidden=false;
   $("#activeName").textContent="Aktivt spår: "+n;
   renderMetadata();rebuild();renderSugg();draw();saveState();
@@ -117,25 +120,36 @@ function editedBuffer(name){
   const ops=name===vocal?edits:tracks[name]?.edits||[],b=bufs[name],key=JSON.stringify(ops);
   if(!ops.length){editedBuffers.delete(name);return b}
   const cached=editedBuffers.get(name);if(cached?.key===key&&cached.original===b)return cached.buffer;
-  const buffer=ctx.createBuffer(b.numberOfChannels,b.length,b.sampleRate),sr=b.sampleRate;
-  for(let c=0;c<b.numberOfChannels;c++){
-    const y=buffer.getChannelData(c);y.set(b.getChannelData(c));
-    for(const e of ops){
-      const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
-      if(e.kind==="fadein")for(let i=0;i<n;i++)y[a+i]*=i/n;
-      else if(e.kind==="fadeout")for(let i=0;i<n;i++)y[a+i]*=1-i/n;
-      else{const f=Math.min(Math.round(e.fade*sr),a,b.length-z);
-        for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}y.fill(0,a,z)
-      }
+  const channels=ops.some(e=>e.kind==='pan')?2:b.numberOfChannels;
+  const buffer=ctx.createBuffer(channels,b.length,b.sampleRate),sr=b.sampleRate;
+  for(let c=0;c<channels;c++)buffer.getChannelData(c).set(b.getChannelData(Math.min(c,b.numberOfChannels-1)));
+  let panBase=null;
+  for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter((e,i)=>e.kind==='pan'&&!ops.slice(i+1).some(later=>later.kind==='pan'&&later.start===e.start&&later.end===e.end))]){
+    const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
+    if(e.kind==='pan'){
+      const left=buffer.getChannelData(0),right=buffer.getChannelData(1),edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));
+      if(!panBase)panBase=[left.slice(),right.slice()];
+      for(let i=0;i<n;i++){let t=n>1?i/(n-1):0;if(e.pan_cycles)t=(1-Math.cos(2*Math.PI*e.pan_cycles*t))/2;const p=e.pan_from+(e.pan_to-e.pan_from)*t,w=edge?Math.min(i/edge,(n-1-i)/edge,1):1,j=a+i,l=left[j],r=right[j],[pl,pr]=panFrame(panBase[0][j],panBase[1][j],p,b.numberOfChannels===1);left[j]=l+(pl-l)*w;right[j]=r+(pr-r)*w}
+    }else for(let c=0;c<channels;c++){
+      const y=buffer.getChannelData(c);
+      if(e.kind==='fadein')for(let i=0;i<n;i++)y[a+i]*=i/n;
+      else if(e.kind==='fadeout')for(let i=0;i<n;i++)y[a+i]*=1-i/n;
+      else{const f=Math.min(Math.round(e.fade*sr),a,b.length-z);for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}y.fill(0,a,z)}
     }
   }
   editedBuffers.set(name,{key,original:b,buffer});return buffer;
 }
-function rebuild(){edBuf=editedBuffer(vocal)}
+function rebuild(){edBuf=editedBuffer(vocal);renderPanEdits()}
 function changed(){invalidateMaster();saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
-function addEdit(kind,s=sel){if(saving||!s||s[1]-s[0]<0.005)return;edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
-function undo(){if(!saving&&edits.length){redo.push(edits.pop());changed()}}
-function redoE(){if(!saving&&redo.length){edits.push(redo.pop());changed()}}
+function addEdit(kind,s=sel){if(saving||!s||s[1]-s[0]<0.005)return;panUndo.push(edits.slice());edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
+function undo(){if(saving)return;if(panUndo.length){redo.push({restoreEdits:edits.slice()});edits=panUndo.pop();changed()}else if(edits.length){redo.push(edits.pop());changed()}}
+function redoE(){if(!saving&&redo.length){const entry=redo.pop();if(entry.restoreEdits){panUndo.push(edits.slice());edits=entry.restoreEdits.slice()}else{panUndo.push(edits.slice());edits.push(entry)}changed()}}
+
+function panFrame(l,r,p,mono){if(p===0)return [l,r];if(mono&&p<=-1)return [(l+r)/2*Math.SQRT2,0];if(mono&&p>=1)return [0,(l+r)/2*Math.SQRT2];if(mono){const angle=(p+1)*Math.PI/4,source=(l+r)/2;return [source*Math.SQRT2*Math.cos(angle),source*Math.SQRT2*Math.sin(angle)]}if(p<=-1)return [l+r,0];if(p>=1)return [0,r+l];if(p<0){const angle=(p+1)*Math.PI/2;return [l+r*Math.cos(angle),r*Math.sin(angle)]}const angle=p*Math.PI/2;return [l*Math.cos(angle),r+l*Math.sin(angle)]}
+function addPan(mode){if(saving||!vocal)return;if(!sel||sel[1]-sel[0]<.005){$('#saveStatus').textContent='Markera först ett parti i spåret.';return}const positions={left:[-1,-1],center:[0,0],right:[1,1],lr:[-1,1],rl:[1,-1],alternate:[-1,1],custom:[+$('#panPosition').value/100,+$('#panPosition').value/100]},pair=positions[mode];if(!pair)return;const cycles=mode==='alternate'?Math.round(Number($('#panCycles').value)):0;if(!Number.isFinite(cycles)||cycles<0||cycles>32||(mode==='alternate'&&cycles<1)){return}panUndo.push(edits.slice());edits.push({kind:'pan',start:sel[0],end:sel[1],fade:.01,pan_from:pair[0],pan_to:pair[1],pan_cycles:cycles});redo=[];changed()}
+function panLabel(e){const position=p=>p===0?'C':p===-1?'V':p===1?'H':Math.round(Math.abs(p)*100)+' % '+(p<0?'V':'H');return e.pan_cycles?`V ↔ H · ${e.pan_cycles} varv`:e.pan_from===e.pan_to?position(e.pan_from):position(e.pan_from)+' → '+position(e.pan_to)}
+function renderPanEdits(){const list=$('#panEdits');list.replaceChildren();edits.forEach((e,index)=>{if(e.kind!=='pan')return;const row=document.createElement('div'),text=document.createElement('small'),remove=document.createElement('button');row.className='bar';text.textContent=`${e.start.toFixed(2)}–${e.end.toFixed(2)} s · ${panLabel(e)}`;remove.textContent='Ta bort panorering';remove.onclick=()=>{if(saving)return;panUndo.push(edits.slice());edits.splice(index,1);redo=[];changed()};row.append(text,remove);list.append(row)})}
+
 function ab(){useEd=!useEd;$("#abb").textContent="Visar: "+(useEd?"Redigerad":"Original");changed()}
 
 // ---- uppspelning (alla stems synkade, bara sångspåret påverkas av redigeringar)
@@ -220,6 +234,7 @@ function sampleGain(t,frame,sr,length){
   let gain=1;
   for(const e of t){
     const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
+    if(e.kind==="pan")continue;
     if(e.kind==="fadein"){if(frame>=a&&frame<z)gain*=(frame-a)/n}
     else if(e.kind==="fadeout"){if(frame>=a&&frame<z)gain*=1-(frame-a)/n}
     else{const f=Math.min(Math.round(e.fade*sr),a,length-z);
@@ -237,14 +252,14 @@ function draw(){
   for(const [name,c] of canvases){
     const g=c.getContext("2d"),W=c.width=c.clientWidth,H=c.height=c.clientHeight;
     g.clearRect(0,0,W,H);
-    const buf=bufs[name],d=buf.getChannelData(0),sr=buf.sampleRate,span=view.b-view.a,x=t=>(t-view.a)/span*W;
+    const buf=bufs[name],wave=useEd?editedBuffer(name):buf,d=wave.getChannelData(0),right=wave.getChannelData(Math.min(1,wave.numberOfChannels-1)),sr=buf.sampleRate,span=view.b-view.a,x=t=>(t-view.a)/span*W;
     const ops=useEd?(name===vocal?edits:tracks[name]?.edits||[]):[];
     const key=JSON.stringify([view.a,view.b,W,ops]);let cache=peakCache.get(name);
     if(!cache||cache.key!==key||cache.buf!==buf){
       const peaks=new Float32Array(W*2),step=Math.max(1,Math.floor(span*sr/W/48));
       for(let px=0;px<W;px++){
         const i0=Math.floor((view.a+px/W*span)*sr),i1=Math.floor((view.a+(px+1)/W*span)*sr);let mn=0,mx=0;
-        for(let i=i0;i<i1&&i<d.length;i+=step){const v=d[i]*sampleGain(ops,i,sr,buf.length);if(v<mn)mn=v;if(v>mx)mx=v}
+        for(let i=i0;i<i1&&i<d.length;i+=step){for(const v of [d[i],right[i]]){if(v<mn)mn=v;if(v>mx)mx=v}}
         peaks[px*2]=mn;peaks[px*2+1]=mx;
       }
       cache={key,buf,peaks};peakCache.set(name,cache);
@@ -255,6 +270,7 @@ function draw(){
     }
     g.fillStyle=name===vocal?"#41d6b4":(["#41d6b4","#69b9b5","#c3a376","#ac9077","#a794d9","#7ca5d1","#7cae9c","#819ccc"][stemCategory(name).rank]||"#8b9aaf");
     for(let px=0;px<W;px++){const mn=cache.peaks[px*2],mx=cache.peaks[px*2+1];g.fillRect(px,H/2-mx*H/2,1,Math.max(1,(mx-mn)*H/2))}
+    for(const e of ops.filter(e=>e.kind==='pan')){g.fillStyle='#b795e5';g.fillRect(x(e.start),H-5,Math.max(1,x(e.end)-x(e.start)),3);if(x(e.end)-x(e.start)>65)g.fillText(panLabel(e),Math.max(4,x(e.start)+4),H-9)}
     g.fillStyle="#f55";g.fillRect(x(pos()),0,2,H);
     g.fillStyle="#8092a5";g.font="11px Segoe UI, sans-serif";g.fillText(view.a.toFixed(1)+"s",4,12);g.fillText(view.b.toFixed(1)+"s",W-44,12);
   }

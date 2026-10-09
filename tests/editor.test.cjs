@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(){this.children=[]},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
+function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
 const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
  document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
@@ -46,6 +46,27 @@ await run('Promise.resolve()');assert.equal(await run('lastRequest.version'),3);
 await run(`mastering=restoreMaster(lastRequest.mastering);tracks=lastRequest.tracks;projectSaved=projectFingerprint();chooseProfile('Vinyl');`);assert.equal(await run('selectedProfile().bass_db'),-1.5);assert.equal(await run('projectDirty()'),true);
 await run(`masterNormalize(false);`);assert.equal(await run('selectedProfile().target_lufs'),null);
 await run(`chooseProfile('CD');masterPreset('Tryck');`);assert.equal(await run('selectedProfile().sample_rate'),44100);assert.equal(await run('selectedProfile().bits'),16);assert.equal(await run('selectedProfile().target_lufs'),-10);assert.equal(await run('mastering.profiles.Vinyl.bass_db'),-1.5);
+// Selection panning preserves the other stem, stereo channels and undo history.
+await run(`bufs={'Synth.wav':ctx.createBuffer(2,1000,1000),'Vocals.wav':ctx.createBuffer(2,1000,1000)};names=Object.keys(bufs);tracks={};vocal=null;for(const n of names){bufs[n].getChannelData(0).fill(.2);bufs[n].getChannelData(1).fill(.3)}buildTracks();setVocal('Synth.wav');sel=[.2,.8];addPan('left');`);
+assert.equal(await run(`editedBuffer('Synth.wav').getChannelData(1)[500]`),0);
+assert.ok(Math.abs(await run(`editedBuffer('Synth.wav').getChannelData(0)[500]`)-.5)<1e-6);
+assert.ok(Math.abs(await run(`editedBuffer('Synth.wav').getChannelData(1)[100]`)-.3)<1e-6);
+assert.equal(await run(`editedBuffer('Vocals.wav')===bufs['Vocals.wav']`),true);
+await run(`addPan('center');`);assert.ok(Math.abs(await run(`editedBuffer('Synth.wav').getChannelData(1)[500]`)-.3)<1e-6);
+await run(`undo();`);assert.equal(await run(`editedBuffer('Synth.wav').getChannelData(1)[500]`),0);
+await run(`redoE();`);assert.ok(Math.abs(await run(`editedBuffer('Synth.wav').getChannelData(1)[500]`)-.3)<1e-6);
+await run(`undo();setVocal('Vocals.wav');setVocal('Synth.wav');sel=[.2,.8];addPan('lr');`);
+assert.ok(await run(`editedBuffer('Synth.wav').getChannelData(0)[220]>editedBuffer('Synth.wav').getChannelData(1)[220]`));
+assert.ok(await run(`editedBuffer('Synth.wav').getChannelData(1)[779]>editedBuffer('Synth.wav').getChannelData(0)[779]`));
+await run(`document.querySelector('#panCycles').value=2;addPan('alternate');`);assert.equal(await run('edits.at(-1).pan_cycles'),2);
+await run(`stashTrack();const panManifest=JSON.parse(JSON.stringify(tracks));tracks=panManifest;vocal=null;setVocal('Synth.wav');`);assert.equal(await run('edits.at(-1).kind'),'pan');
+await run(`const beforeRemove=edits.length;document.querySelector('#panEdits').children[0].children[1].onclick();`);assert.equal(await run('edits.length'),await run('beforeRemove-1'));await run('undo()');assert.equal(await run('edits.length'),await run('beforeRemove'));
+await run(`bufs['Mono.wav']=ctx.createBuffer(1,1000,1000);bufs['Mono.wav'].getChannelData(0).fill(.2);names.push('Mono.wav');setVocal('Mono.wav');sel=[.2,.8];addPan('right');`);
+assert.equal(await run(`editedBuffer('Mono.wav').numberOfChannels`),2);assert.equal(await run(`editedBuffer('Mono.wav').getChannelData(0)[500]`),0);
+assert.ok(Math.abs(await run(`editedBuffer('Mono.wav').getChannelData(1)[500]`)-.2*Math.SQRT2)<1e-6);
 await run(`sideTracks=[{stem:'Song.wav',side:'A',gap:2}];sideDurations={'Song.wav':60};document.querySelector('#sideTitle').value='Album';document.querySelector('#sideRate').value='44100';document.querySelector('#sideBits').value='24';sideSaved=JSON.stringify(sideRequest());sideTracks[0].side='B';`);assert.equal(await run('sideDirty()'),true);
+// Rebuild detaches the active editor. Real querySelector cannot find its controls until reattached.
+await run(`setVocal('Synth.wav');buildTracks();const realQuery=document.querySelector;let missingDetachedControls=false;document.querySelector=s=>{if(s==='#pp'&&!editorPanel.parentElement?.parentElement){missingDetachedControls=true;return null}return realQuery(s)};setVocal('Vocals.wav');document.querySelector=realQuery;`);
+assert.equal(await run('missingDetachedControls'),false);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});
