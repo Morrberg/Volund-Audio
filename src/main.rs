@@ -2,6 +2,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
+mod mastering;
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
@@ -10,7 +11,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -155,7 +156,7 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
     Ok(Json(json!({"duration": total, "suggestions": out})))
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32 }
 #[derive(Deserialize)]
 struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes> }
@@ -164,26 +165,7 @@ async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): J
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
     let name = fname(&r.stem);
     let (mut y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
-    let nf = y.len() / ch;
-    for e in &r.edits {
-        let a = ((e.start * sr as f32).round().max(0.0) as usize).min(nf);
-        let b = ((e.end * sr as f32).round().max(0.0) as usize).min(nf);
-        if b <= a { continue; }
-        let n = b - a;
-        let mut gain = |f: usize, g: f32| for c in 0..ch { y[f * ch + c] *= g };
-        match e.kind.as_str() {
-            "fadein" => for i in 0..n { gain(a + i, i as f32 / n as f32) },
-            "fadeout" => for i in 0..n { gain(a + i, 1.0 - i as f32 / n as f32) },
-            _ => {
-                let f = ((e.fade * sr as f32).round() as usize).min(a).min(nf - b);
-                for i in 0..f {
-                    gain(a - f + i, 1.0 - i as f32 / f as f32);
-                    gain(b + i, i as f32 / f as f32);
-                }
-                for i in a..b { gain(i, 0.0); }
-            }
-        }
-    }
+    mastering::apply_edits(&mut y, sr, ch, &r.edits).map_err(bad)?;
     let spec = hound::WavSpec { channels: ch as u16, sample_rate: sr, bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float };
     let mut buf = Cursor::new(Vec::new());
@@ -211,6 +193,12 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/export/:sid", post(export))
         .route("/api/save/:sid", post(save))
         .route("/api/project/:sid", post(save_project))
+        .route("/api/master/analyze/:sid", post(mastering::analyze))
+        .route("/api/master/preview/:sid", post(mastering::preview))
+        .route("/api/master/export/:sid", post(mastering::batch))
+        .route("/api/master/save/:sid", post(mastering::save_batch))
+        .route("/api/master/single/:sid", post(mastering::single))
+        .route("/api/master/sides/:sid", post(mastering::sides))
         .layer(DefaultBodyLimit::max(2 << 30))
         .with_state(dir);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -306,6 +294,9 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
     -> R<axum::response::Response> {
     use axum::response::IntoResponse;
     let bytes = project_zip(&sess(&root, &sid)?, &project)?;
+    if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
+        return Ok(([(header::CONTENT_TYPE, "application/zip")], bytes).into_response());
+    }
     #[cfg(target_os = "windows")]
     {
         let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()

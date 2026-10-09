@@ -14,8 +14,10 @@ button,select{font:inherit;background:var(--surface);color:var(--fg);border:1px 
 #transport{position:sticky;bottom:10px;background:var(--card);padding:10px;border:1px solid var(--border);border-radius:9px;z-index:2;box-shadow:0 6px 20px #0002}#transport label{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;margin:0 4px}#transport button#pp{min-width:88px}#transport button.edit{border-color:#41d6b45c;color:var(--ac)}#transport .separator{width:1px;height:24px;background:var(--border);margin:0 2px}
 input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-color:var(--ac)}.metadata{margin:10px 0;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:8px}.metadata summary{cursor:pointer;font-weight:600;font-size:13px}.metadata p{color:var(--muted);font-size:12px}.meta-row{display:grid;grid-template-columns:minmax(120px,170px) 1fr auto;gap:8px;align-items:center;margin:7px 0}.meta-row label{font-size:12px;color:var(--muted)}.meta-row textarea{min-height:34px;border:1px solid var(--border);border-radius:5px;padding:6px;resize:vertical}.meta-row button{font-size:12px}.sg{background:var(--surface);padding:9px 12px;border:1px solid var(--border);border-radius:7px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sg b{color:var(--ac);font-variant-numeric:tabular-nums}.empty-note{padding:55px 20px;text-align:center;border:1px dashed var(--border);border-radius:11px;color:var(--muted)}
 [hidden]{display:none!important}@media(max-width:760px){body{padding:12px}.brand h1{font-size:21px}.brand img{width:43px;height:43px}.import-bar #vsel{max-width:100%}.meta-row{grid-template-columns:100px 1fr auto}#transport{gap:6px;padding:8px}#transport button{font-size:12px;padding:7px}.separator{display:none}.workspace-heading{align-items:flex-start}}
+
+.master-panel{margin:20px 0;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:16px}.master-panel>summary{font-size:17px;font-weight:650;cursor:pointer}.master-panel p{color:var(--muted);margin:8px 0}.master-panel fieldset{border:0;padding:0;margin:0;min-width:0}.master-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:14px 0}.master-grid label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}.master-grid input,.master-grid select{width:100%;min-width:0;border:1px solid var(--border);padding:8px;border-radius:6px}.master-grid input[type=checkbox]{width:auto}.profile-note{border-left:3px solid var(--ac);padding:8px 12px;background:var(--surface);border-radius:4px}.metrics{display:flex;flex-wrap:wrap;gap:12px}.metric{background:var(--surface);padding:10px 14px;border-radius:7px;min-width:130px}.metric strong{display:block;font-size:20px;color:var(--ac);font-variant-numeric:tabular-nums}.master-actions{border-top:1px solid var(--border);padding-top:12px;margin-top:14px}.mix-controls{display:flex;gap:7px;align-items:center;margin-left:auto}.mix-controls label{font-size:12px}.mix-controls input[type=number]{width:64px;padding:4px;border:1px solid var(--border);border-radius:4px}.track header .mix-controls button{border:1px solid var(--border);font-size:12px;padding:3px 8px}.mix-controls button[aria-pressed=true]{color:var(--ac);border-color:var(--ac)}.side-row{display:flex;gap:8px;align-items:center;margin:8px 0;padding:8px;background:var(--surface);border-radius:6px}.side-row span{flex:1;overflow-wrap:anywhere}.side-row input{width:65px}.master-warning{color:#dba567}.master-player{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.master-player input[type=range]{flex:1;min-width:130px}.master-panel h3{font-size:14px;margin:20px 0 8px}@media(max-width:900px){.track header{flex-wrap:wrap}.mix-controls{margin-left:0;width:100%}.master-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style></head><body>
-<header class="app-header"><div class="brand"><img src="/icon.svg" alt=""><div><h1>Vocal Cleaner</h1><p>STEM EDITOR · LOKAL LJUDREDIGERING</p></div></div><div><span class="version">v0.3</span><button id="themeButton" onclick="toggleTheme()" aria-label="Växla ljust och mörkt tema">Ljust tema</button></div></header>
+<header class="app-header"><div class="brand"><img src="/icon.svg" alt=""><div><h1>Vocal Cleaner</h1><p>STEM EDITOR · MIX · MASTERING</p></div></div><div><span class="version">v0.4</span><button id="themeButton" onclick="toggleTheme()" aria-label="Växla ljust och mörkt tema">Ljust tema</button></div></header>
 <div class="bar import-bar">
   <label class="file-button">＋ Öppna stems / projekt<input type="file" id="f" multiple accept=".wav,.mp3,.flac,.zip,.vcleaner"></label>
   <select id="vsel" title="Sångspår"></select>
@@ -24,6 +26,24 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
   <button id="projectSave" onclick="saveProject()" disabled>Spara projekt…</button>
   <span id="saveStatus" role="status" aria-live="polite">Öppna ljudfiler för att börja.</span>
 </div>
+
+<details id="masterPanel" class="master-panel"><summary>Masteringstudio · en mix, flera utgåvor</summary>
+<p>Justera spårens nivåer, välj en profil och lyssna före/efter. Varje version skapas från samma redigerade mix.</p>
+<fieldset id="masterFields" disabled>
+<div class="master-grid"><label>Låttitel<input id="masterTitle" maxlength="100" oninput="masterText('title',this.value)"></label><label>Artist<input id="masterArtist" oninput="masterText('artist',this.value)"></label><label>Album<input id="masterAlbum" oninput="masterText('album',this.value)"></label><label>Profil att redigera<select id="masterProfile" onchange="chooseProfile(this.value)"><option>Spotify</option><option>Vinyl</option><option>CD</option><option>Kassett</option></select></label></div>
+<p class="profile-note" id="profileNote"></p>
+<div class="bar"><label><input id="normalizeMaster" type="checkbox" onchange="masterNormalize(this.checked)"> Anpassa ljudstyrka till LUFS-mål</label><button onclick="masterPreset('Varsam')">Varsam</button><button onclick="masterPreset('Balanserad')">Balanserad</button><button onclick="masterPreset('Tryck')">Tryck</button><button onclick="resetProfile()">Återställ profilen</button></div>
+<div class="master-grid" id="profileControls"></div>
+<div class="bar"><label><input id="masterLimiter" type="checkbox" onchange="masterValue('limiter',this.checked)"> Limiter</label><small>True-peak-gränsen gäller även utan limiter; vid behov sänks hela versionen.</small></div>
+<div class="bar"><button class="p" id="masterAnalyze" onclick="analyzeMaster()">Analysera &amp; föreslå</button><button id="masterPreview" onclick="prepareMaster()">Skapa förhandslyssning</button><label><input id="matchLoudness" type="checkbox" checked onchange="masterMatch=this.checked;updateMasterGain()"> Matcha volym vid jämförelse</label></div>
+<div id="masterMetrics" class="metrics"></div><p id="masterAdvice"></p><p id="masterStatus" role="status" aria-live="polite">Öppna stems för att börja.</p>
+<div class="master-player"><button id="masterDry" onclick="playMaster(false)" disabled>▶ Före</button><button id="masterWet" onclick="playMaster(true)" disabled>▶ Efter</button><button onclick="stopMaster()">■ Stopp</button><input id="masterSeek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position för masteringlyssning" oninput="seekMaster(+this.value)"><small id="masterTime">0:00</small></div>
+<div class="master-actions"><div class="bar"><span>Exportera:</span><div id="masterExportProfiles" class="bar"></div></div><div class="bar"><button class="p" id="masterExport" onclick="exportMasters(true)">Spara valda versioner som ZIP…</button><button onclick="exportMasters(false)">Spara aktuell profil som WAV…</button><small>16/24-bit PCM · dither · mätvärden och inställningar i ZIP-rapporten</small></div></div>
+</fieldset></details>
+<details class="master-panel" id="sidePanel"><summary>Album · sammanställ sida A och B</summary><p>Öppna färdiga masterfiler för vinyl eller kassett. Välj sida, ordning och mellanrum. Låtarna sammanställs utan ny kompression eller tonbehandling.</p>
+<fieldset id="sideFields"><label class="file-button">＋ Öppna färdiga låtar<input id="sideFiles" type="file" multiple accept=".wav,.flac,.zip,.vcleaner" onchange="loadSides(this.files)"></label>
+<div class="master-grid"><label>Utgåvans namn<input id="sideTitle" value="Album" oninput="saveState()"></label><label>Samplingsfrekvens<select id="sideRate" onchange="saveState()"><option value="44100">44,1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select></label><label>Bitdjup<select id="sideBits" onchange="saveState()"><option value="24">24 bit</option><option value="16">16 bit</option></select></label></div>
+<div id="sideTracks"></div><p id="sideDuration"></p><button id="sideSave" disabled onclick="exportSides()">Spara sida A/B och låtlistor som ZIP…</button><span id="sideStatus" role="status"></span><p><small>Inställningarna sparas tillsammans med ljudfilerna via Spara sidprojekt. Kontrollera sidlängd och leveranskrav med skärverket eller dupliceringsföretaget. Sammanställningen sänks enbart om −1 dBTP annars överskrids.</small></p><button id="sideProjectSave" disabled onclick="saveSideProject()">Spara sidprojekt…</button></fieldset></details>
 <div class="workspace-heading"><h2>Spår · gemensam tidslinje</h2><small id="memory">WAV, MP3, FLAC, Suno ZIP och Vocal Cleaner-projekt</small></div>
 <div id="tracks"><div class="empty-note">Öppna dina stems för att se och redigera dem på samma tidslinje.</div><canvas class="wave" id="wf" hidden></canvas></div>
 <div id="editorPanel" hidden>
@@ -58,24 +78,28 @@ let saving=false,savedEdits="[]",tracks={},projectSaved="{}";
 let sid,names=[],bufs={},vocal,edits=[],redo=[],sel=null,sugg=[],view={a:0,b:1},srcs=[],playing=false,startT=0,startOff=0,loop=false,useEd=true,edBuf=null;
 
 $("#f").onchange=async e=>{
-  if(vocal&&projectDirty()&&!confirm("Öppna nya filer och lämna det nuvarande projektet? Osparade projektändringar försvinner."))return;
-  stop();vocal=null;
-  const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
-  const r=await fetch("/api/upload",{method:"POST",body:fd});
-  if(!r.ok){alert("Uppladdning misslyckades");return}
-  const j=await r.json();sid=j.sid;names=j.stems;bufs={};metaInfo={};vocal=null;tracks=j.project?.tracks||{};projectSaved=projectFingerprint();
-  for(const n of names)bufs[n]=await ctx.decodeAudioData(await(await fetch(`/api/stem/${sid}/${encodeURIComponent(n)}`)).arrayBuffer());
-  await Promise.all(names.map(async n=>{try{const r=await fetch(`/api/metadata/${sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());metaInfo[n]=await r.json()}catch(e){metaInfo[n]={error:e.message,fields:[],pictures:0,binary:0}}}));
-  names.sort(compareStems);
-  const s=$("#vsel");s.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
-  editedBuffers.clear();buildTracks();s.value=j.vocal||names[0];setVocal(s.value);
-  $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
+  if(saving||!e.target.files.length)return;stashTrack();
+  if(vocal&&projectFingerprint()!==projectSaved&&!confirm("Öppna nya filer och lämna det nuvarande projektet? Osparade projektändringar försvinner."))return;
+  stop();stopMaster();masterBusy(true,'Öppnar stems och projekt…');
+  try{
+    const fd=new FormData();[...e.target.files].forEach(f=>fd.append("files",f));
+    const r=await fetch("/api/upload",{method:"POST",body:fd});if(!r.ok)throw new Error(await r.text());
+    const j=await r.json(),loaded={},info={};
+    for(const n of j.stems){const r=await fetch(`/api/stem/${j.sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());loaded[n]=await ctx.decodeAudioData(await r.arrayBuffer())}
+    await Promise.all(j.stems.map(async n=>{try{const r=await fetch(`/api/metadata/${j.sid}/${encodeURIComponent(n)}`);if(!r.ok)throw new Error(await r.text());info[n]=await r.json()}catch(e){info[n]={error:e.message,fields:[],pictures:0,binary:0}}}));
+    vocal=null;sid=j.sid;names=j.stems;bufs=loaded;metaInfo=info;tracks=j.project?.tracks||{};mastering=restoreMaster(j.project?.mastering);invalidateMaster();projectSaved=projectFingerprint();
+    names.sort(compareStems);const select=$("#vsel");select.replaceChildren(...names.map(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;return o}));
+    editedBuffers.clear();buildTracks();renderMaster();select.value=j.vocal||names[0];setVocal(select.value);
+    $("#memory").textContent=`${names.length} stems · avkodat ljud cirka ${Math.round(Object.values(bufs).reduce((sum,b)=>sum+b.length*b.numberOfChannels*4,0)/1048576)} MB`;
+    $('#masterStatus').textContent='Välj en profil och analysera mixen.';
+  }catch(e){$('#masterStatus').textContent='Kunde inte öppna: '+e.message}
+  finally{masterBusy(false)}
 };
 $("#vsel").onchange=e=>setVocal(e.target.value);
 function stashTrack(){if(vocal)tracks[vocal]={...tracks[vocal],edits:edits.slice(),redo:redo.slice(),savedEdits};}
-function projectFingerprint(){return JSON.stringify(Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length||tracks[n].metadata).map(n=>[n,tracks[n].edits||[],tracks[n].metadata||null]))}
+function projectFingerprint(){return JSON.stringify({tracks:Object.keys(tracks).sort().filter(n=>tracks[n].edits?.length||tracks[n].metadata||tracks[n].gain_db||tracks[n].mute||tracks[n].solo).map(n=>[n,tracks[n].edits||[],tracks[n].metadata||null,tracks[n].gain_db||0,!!tracks[n].mute,!!tracks[n].solo]),mastering})}
 function audioFingerprint(){return tracks[vocal]?.metadata?JSON.stringify({edits,metadata:tracks[vocal].metadata}):JSON.stringify(edits)}
-function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved}
+function projectDirty(){stashTrack();return projectFingerprint()!==projectSaved||sideDirty()}
 function setVocal(n){
   const switching=!!vocal;stashTrack();stop();vocal=n;
   const state=tracks[n]||{edits:[],redo:[],savedEdits:"[]"};
@@ -108,10 +132,10 @@ function editedBuffer(name){
   editedBuffers.set(name,{key,original:b,buffer});return buffer;
 }
 function rebuild(){edBuf=editedBuffer(vocal)}
-function changed(){saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
-function addEdit(kind,s=sel){if(!s||s[1]-s[0]<0.005)return;edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
-function undo(){if(edits.length){redo.push(edits.pop());changed()}}
-function redoE(){if(redo.length){edits.push(redo.pop());changed()}}
+function changed(){invalidateMaster();saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
+function addEdit(kind,s=sel){if(saving||!s||s[1]-s[0]<0.005)return;edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
+function undo(){if(!saving&&edits.length){redo.push(edits.pop());changed()}}
+function redoE(){if(!saving&&redo.length){edits.push(redo.pop());changed()}}
 function ab(){useEd=!useEd;$("#abb").textContent="Visar: "+(useEd?"Redigerad":"Original");changed()}
 
 // ---- uppspelning (alla stems synkade, bara sångspåret påverkas av redigeringar)
@@ -119,8 +143,9 @@ function pos(){
   if(!playing)return startOff;
   return Math.min(startOff+ctx.currentTime-startT,bufs[vocal].duration)}
 function play(off,dur){
-  stop(true);ctx.resume();const lp=loop&&sel&&dur===undefined;if(lp)off=sel[0];
-  srcs=names.filter(n=>off<bufs[n].duration).map(n=>{const s=ctx.createBufferSource();s.buffer=useEd?editedBuffer(n):bufs[n];s.connect(ctx.destination);
+  stopMaster();stop(true);ctx.resume();const lp=loop&&sel&&dur===undefined;if(lp)off=sel[0];
+  const anySolo=names.some(n=>tracks[n]?.solo&&!tracks[n]?.mute);
+  srcs=names.filter(n=>off<bufs[n].duration&&!tracks[n]?.mute&&(!anySolo||tracks[n]?.solo)).map(n=>{const s=ctx.createBufferSource();s.buffer=useEd?editedBuffer(n):bufs[n];const g=ctx.createGain();g.gain.value=10**((tracks[n]?.gain_db||0)/20);s.connect(g);g.connect(ctx.destination);
     if(lp){s.loop=true;s.loopStart=sel[0];s.loopEnd=sel[1]}return s});
   srcs.forEach(s=>dur===undefined?s.start(0,off):s.start(0,off,dur));
   startT=ctx.currentTime;startOff=off;playing=true;tick()}
@@ -185,7 +210,7 @@ function buildTracks(){
   for(const n of names){
     const row=document.createElement("section");row.className="track";
     const label=document.createElement("header"),button=document.createElement("button");
-    button.textContent=n;button.onclick=()=>{if(!saving)setVocal(n)};label.append(button);const category=document.createElement("small");category.textContent=stemCategory(n).label;label.append(category);row.append(label);
+    button.textContent=n;button.onclick=()=>{if(!saving)setVocal(n)};label.append(button);const category=document.createElement("small");category.textContent=stemCategory(n).label;label.append(category);label.append(mixControls(n));row.append(label);
     const c=document.createElement("canvas");c.className="wave";c.title="Klicka eller dra för att redigera detta spår";
     c.onmousedown=e=>{if(saving)return;if(n!==vocal){const before=c.getBoundingClientRect().top;setVocal(n);const shift=c.getBoundingClientRect().top-before;if(shift)window.scrollBy(0,shift)}wf=c;mouseDown(e)};
     c.onmousemove=mouseMove;c.onwheel=wheel;row.append(c);$("#tracks").append(row);trackCanvases.set(n,c);
@@ -261,6 +286,7 @@ function accS(i){const s=sugg[i];if(s.state=="godkänd")return;s.state="godkänd
 function rejS(i){sugg[i].state="avvisad";renderSugg();draw()}
 
 function saveState(message){
+  $("#masterFields").disabled=!sid||saving;
   if(window.ipc)window.ipc.postMessage(projectDirty()?"dirty":"clean");
   $("#save").disabled=!vocal||saving;$("#projectSave").disabled=!vocal||saving;
   $("#saveStatus").textContent=message||(audioFingerprint()!==savedEdits?"Osparade ändringar":"Inga osparade ändringar");
@@ -273,14 +299,14 @@ async function saveWav(){
     const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot),metadata})});
     if(!r.ok)throw new Error(await r.text());
     const j=await r.json();if(!j.cancelled){savedEdits=signature;saveState(audioFingerprint()===signature?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
-  }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false}
+  }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false;saveState($("#saveStatus").textContent)}
 }
 async function saveProject(){
   if(!vocal||saving)return;
   stashTrack();const snapshot=JSON.stringify(tracks),fingerprint=projectFingerprint();saving=true;saveState("Sparar projekt…");
   $("#vsel").disabled=true;$("#f").disabled=true;
   try{
-    const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:2,tracks:JSON.parse(snapshot)})});
+    const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:3,tracks:JSON.parse(snapshot),mastering:JSON.parse(JSON.stringify(mastering))})});
     if(!r.ok)throw new Error(await r.text());
     if(/Windows/i.test(navigator.userAgent)){
       const j=await r.json();if(j.cancelled){saveState("Sparandet avbröts.");return}
@@ -289,7 +315,7 @@ async function saveProject(){
     }
     projectSaved=fingerprint;saveState(projectDirty()?"Projekt sparat. Det finns nya osparade ändringar.":"Projekt sparat – alla stems och redigeringar finns kvar.");
   }catch(e){saveState("Kunde inte spara projekt: "+e.message)}finally{
-    saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;
+    saving=false;$("#save").disabled=false;$("#projectSave").disabled=false;$("#vsel").disabled=false;$("#f").disabled=false;saveState($("#saveStatus").textContent);
   }
 }
 addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveWav()}});
@@ -301,4 +327,59 @@ async function exportWav(){
   if(!r.ok){alert("Export misslyckades");return}
   const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());
   a.download=(r.headers.get("content-disposition")||"").match(/filename="?([^";]+)/)?.[1]||"cleaned.wav";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+
+// Local mastering settings, stored in the same project manifest as stem edits.
+const profileIds=['Spotify','Vinyl','CD','Kassett'];
+function defaultProfile(id){return {id,sample_rate:44100,bits:id==='CD'?16:24,target_lufs:id==='Vinyl'||id==='Kassett'?null:-14,ceiling_db:id==='Vinyl'?-3:-1,bass_db:0,mid_db:0,treble_db:0,compression:id==='Vinyl'?0:15,mono_bass_hz:id==='Vinyl'?120:0,highpass_hz:id==='Vinyl'?20:0,limiter:id!=='Vinyl'}}
+function restoreMaster(value){const base={title:'Låt 1',artist:'',album:'',selected:'Spotify',exportIds:profileIds.slice(),profiles:Object.fromEntries(profileIds.map(id=>[id,defaultProfile(id)]))};if(!value)return base;return {...base,...value,selected:profileIds.includes(value.selected)?value.selected:'Spotify',profiles:Object.fromEntries(profileIds.map(id=>[id,{...defaultProfile(id),...value.profiles?.[id],id}]))}}
+let mastering=restoreMaster(),masterCache=null,masterSource=null,masterGainNode=null,masterStart=0,masterOffset=0,masterWet=false,masterMatch=true,masterGeneration=0;
+const profileNotes={Spotify:'Streaming: −14 LUFS är en rekommenderad utgångspunkt, inget krav. För starkare master rekommenderas minst 2 dB true-peak-marginal.',Vinyl:'Underlag för skärning: mer dynamik, försiktigare toppar och smalare djupbas. Standardvärdena är justerbara; skärverket avgör slutlig anpassning.',CD:'CD-ljud: 16 bit / 44,1 kHz. Dither läggs till vid slutlig bitdjupsminskning. WAV-exporten är inte en komplett DDP-produktionsmaster.',Kassett:'Utgångspunkt för kassett: välj samplingsfrekvens och bitdjup enligt dupliceringsföretagets krav. Ingen tapesimulering eller Dolby-kodning läggs till.'};
+const warningLabels={gain_limited:'Nivåhöjningen begränsades till 12 dB.',silent_or_short:'Mixen är tyst eller för kort för tillförlitlig LUFS-mätning.',heavy_limiting:'Limitern arbetar mer än 3 dB. Prova ett lägre LUFS-mål för att behålla mer attack.',target_not_reached:'LUFS-målet nåddes inte inom toppgränsen. Uppmätt nivå visas ovan.',vinyl_cutting_review:'Vinyl: låt skärverket granska resultatet och sidlängden.',wide_bass:'Mixen har mycket stereoenergi i djupbasen. Lyssna på mono-bas-inställningen.',bright_treble:'Mixen har mycket energi i diskanten. Kontrollera vassa cymbaler och s-ljud.',cassette_supplier_review:'Kassett: kontrollera leveransformat och nivå med dupliceringsföretaget.',streaming_headroom:'Master starkare än −14 LUFS: överväg −2 dBTP som toppgräns.'};
+const controlSpecs=[['target_lufs','LUFS-mål',-30,-6,.5],['ceiling_db','True peak max · dBTP',-12,-.1,.1],['bass_db','Bas · dB',-6,6,.5],['mid_db','Mellanregister · dB',-6,6,.5],['treble_db','Diskant · dB',-6,6,.5],['compression','Kompression · %',0,100,5],['mono_bass_hz','Smal djupbas under · Hz (0 = av)',0,250,10],['highpass_hz','Lågskärning · Hz (0 = av)',0,80,5]];
+function selectedProfile(){return mastering.profiles[mastering.selected]}
+function renderMaster(){
+  $('#masterFields').disabled=!sid||saving;$('#masterTitle').value=mastering.title;$('#masterArtist').value=mastering.artist;$('#masterAlbum').value=mastering.album;$('#masterProfile').value=mastering.selected;
+  const p=selectedProfile();$('#profileNote').textContent=profileNotes[p.id];$('#normalizeMaster').checked=p.target_lufs!==null;$('#masterLimiter').checked=p.limiter;
+  $('#profileControls').replaceChildren();
+  for(const [key,text,min,max,step] of controlSpecs){const label=document.createElement('label'),input=document.createElement('input');label.textContent=text;input.type='number';input.min=min;input.max=max;input.step=step;input.value=p[key]??-14;input.id='master-'+key;input.disabled=key==='target_lufs'&&p.target_lufs===null;input.onchange=()=>{const v=Number(input.value);if(!Number.isFinite(v)||v<min||v>max){input.value=p[key]??-14;return}masterValue(key,v)};label.append(input);$('#profileControls').append(label)}
+  for(const [key,text,options] of [['sample_rate','Samplingsfrekvens',[[44100,'44,1 kHz'],[48000,'48 kHz'],[88200,'88,2 kHz'],[96000,'96 kHz']]],['bits','Bitdjup',[[16,'16 bit'],[24,'24 bit']]]]){const label=document.createElement('label'),select=document.createElement('select');label.textContent=text;select.id='master-'+key;for(const [value,text] of options){const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o)}select.value=p[key];select.disabled=p.id==='CD';select.onchange=()=>masterValue(key,+select.value);label.append(select);$('#profileControls').append(label)}
+  $('#masterExportProfiles').replaceChildren();for(const id of profileIds){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=mastering.exportIds.includes(id);input.onchange=()=>{mastering.exportIds=input.checked?[...new Set([...mastering.exportIds,id])]:mastering.exportIds.filter(v=>v!==id);saveState()};label.append(input,document.createTextNode(id));$('#masterExportProfiles').append(label)}
+}
+function masterText(key,value){if(saving)return;mastering[key]=value;invalidateMaster();saveState()}
+function masterValue(key,value){if(saving)return;selectedProfile()[key]=value;invalidateMaster();saveState()}
+function masterNormalize(enabled){masterValue('target_lufs',enabled?-14:null);renderMaster()}
+function chooseProfile(id){if(saving)return;mastering.selected=id;invalidateMaster();renderMaster();saveState()}
+function resetProfile(){if(saving)return;mastering.profiles[mastering.selected]=defaultProfile(mastering.selected);invalidateMaster();renderMaster();saveState()}
+function masterPreset(name){if(saving)return;const p=selectedProfile();p.compression={Varsam:0,Balanserad:25,Tryck:55}[name];if(p.id==='Spotify'||p.id==='CD'){p.target_lufs={Varsam:-16,Balanserad:-14,Tryck:-10}[name];p.ceiling_db=name==='Tryck'?-2:-1}invalidateMaster();renderMaster();saveState()}
+function invalidateMaster(){masterGeneration++;stopMaster();masterCache=null;$('#masterDry').disabled=true;$('#masterWet').disabled=true;$('#masterMetrics').replaceChildren();$('#masterAdvice').textContent='';$('#masterStatus').textContent=sid?'Ändrad mix eller profil — skapa ny förhandslyssning.':'Öppna stems för att börja.'}
+function mixControls(name){const box=document.createElement('div');box.className='mix-controls';const label=document.createElement('label'),level=document.createElement('input');label.textContent='dB ';level.type='number';level.min=-60;level.max=12;level.step=.5;level.value=tracks[name]?.gain_db||0;level.setAttribute('aria-label','Nivå '+name);level.onchange=()=>{const value=+level.value;if(saving||!Number.isFinite(value)||value< -60||value>12){level.value=tracks[name]?.gain_db||0;return}mixChange(name,'gain_db',value)};label.append(level);box.append(label);
+  for(const [key,text] of [['mute','Mute'],['solo','Solo']]){const button=document.createElement('button');button.textContent=text;button.setAttribute('aria-label',text+' '+name);button.setAttribute('aria-pressed',!!tracks[name]?.[key]);button.onclick=()=>{if(saving)return;const next=!tracks[name]?.[key];mixChange(name,key,next);button.setAttribute('aria-pressed',next)};box.append(button)}return box}
+function mixChange(name,key,value){stashTrack();tracks[name]={...tracks[name],[key]:value};invalidateMaster();saveState();if(playing)play(pos())}
+function masterRequest(ids=[mastering.selected]){stashTrack();return {title:mastering.title.trim(),artist:mastering.artist,album:mastering.album,tracks:names.map(stem=>({stem,edits:tracks[stem]?.edits||[],gain_db:tracks[stem]?.gain_db||0,mute:!!tracks[stem]?.mute,solo:!!tracks[stem]?.solo})),profiles:ids.map(id=>({...mastering.profiles[id]}))}}
+async function masterPost(endpoint,request){const r=await fetch(`/api/master/${endpoint}/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!r.ok)throw new Error(await r.text());return r}
+function masterBusy(on,message){saving=on;$('#sideFields').disabled=on;$('#masterFields').disabled=on||!sid;$('#f').disabled=on;$('#vsel').disabled=on;$('#sideFiles').disabled=on;saveState();if(message)$('#masterStatus').textContent=message}
+function metricText(value,digits=1){return value===null||value===undefined?'—':value.toFixed(digits)}
+function showMasterReport(report){$('#masterMetrics').replaceChildren();for(const [label,value] of [['Mix · LUFS',metricText(report.input.lufs)],['Master · LUFS',metricText(report.output.lufs)],['True peak · dBTP',metricText(report.output.true_peak_db)],['Dynamik · LRA',metricText(report.output.lra)],['Limiter · dB',metricText(report.limiter_reduction_db)],['Längd · min',metricText(report.output.duration/60)]]){const box=document.createElement('div'),small=document.createElement('small'),strong=document.createElement('strong');box.className='metric';small.textContent=label;strong.textContent=value;box.append(small,strong);$('#masterMetrics').append(box)}$('#masterAdvice').textContent=report.warnings.map(key=>warningLabels[key]||key).join(' ');$('#masterAdvice').className='master-warning'}
+async function analyzeMaster(){if(!sid||saving)return;stop();stopMaster();masterBusy(true,'Analyserar hela mixen…');try{const report=await(await masterPost('analyze',masterRequest())).json();showMasterReport(report);const p=selectedProfile();let advice='';if(report.input.crest_db!==null&&report.input.crest_db<7)advice+='Mixen är redan tät. Prova Varsam och mindre kompression. ';if(p.id==='Vinyl'&&report.input.bass_side_ratio>.25)advice+='Prova smal djupbas vid 120 Hz och jämför före/efter. ';if(report.input.treble_ratio>.2)advice+='Prova att sänka diskanten 0,5–1 dB. ';$('#masterStatus').textContent=advice||'Analys klar. Börja varsamt och jämför vid matchad volym. Inga inställningar har ändrats.'}catch(e){$('#masterStatus').textContent='Analysen misslyckades: '+e.message}finally{masterBusy(false)}}
+function dryMix(){const sr=ctx.sampleRate||bufs[names[0]].sampleRate,length=Math.max(...names.map(n=>bufs[n].length));const buffer=ctx.createBuffer(2,length,sr);const solo=names.some(n=>tracks[n]?.solo&&!tracks[n]?.mute);for(const n of names){const t=tracks[n]||{};if(t.mute||(solo&&!t.solo))continue;const b=editedBuffer(n),g=10**((t.gain_db||0)/20);for(let c=0;c<2;c++){const out=buffer.getChannelData(c),input=b.getChannelData(Math.min(c,b.numberOfChannels-1));for(let i=0;i<input.length;i++)out[i]+=input[i]*g}}return buffer}
+async function prepareMaster(){if(!sid||saving)return;stop();stopMaster();masterBusy(true,'Bearbetar hela låten för förhandslyssning…');const generation=masterGeneration;try{const request=masterRequest(),report=await(await masterPost('analyze',request)).json();const audio=await(await masterPost('preview',request)).arrayBuffer();const wet=await ctx.decodeAudioData(audio);if(generation!==masterGeneration)return;masterCache={wet,dry:dryMix(),report};showMasterReport(report);$('#masterDry').disabled=false;$('#masterWet').disabled=false;$('#masterSeek').max=wet.duration;$('#masterSeek').value=0;masterOffset=0;$('#masterStatus').textContent='Klar. Växla Före/Efter under uppspelning för att jämföra samma position.'}catch(e){$('#masterStatus').textContent='Förhandslyssning misslyckades: '+e.message}finally{masterBusy(false)}}
+function masterPosition(){return masterSource?Math.min(masterCache.wet.duration,masterOffset+ctx.currentTime-masterStart):masterOffset}
+function stopMaster(){if(masterSource){masterOffset=masterPosition();masterSource.onended=null;try{masterSource.stop()}catch{}masterSource=null}$('#masterDry').textContent='▶ Före';$('#masterWet').textContent='▶ Efter'}
+function updateMasterGain(){if(!masterGainNode||!masterCache)return;const input=masterCache.report.input.lufs,output=masterCache.report.output.lufs;let dryDb=0,wetDb=0;if(masterMatch&&input!==null&&output!==null){const common=Math.min(input,output);dryDb=common-input;wetDb=common-output}const peak=Math.max((masterCache.report.input.true_peak_db??-200)+dryDb,(masterCache.report.output.true_peak_db??-200)+wetDb);const safety=Math.min(0,-.5-peak);masterGainNode.gain.setTargetAtTime(10**(((masterWet?wetDb:dryDb)+safety)/20),ctx.currentTime,.01)}
+function playMaster(wet){if(!masterCache||saving)return;const position=masterPosition();stop();stopMaster();masterOffset=position>=masterCache.wet.duration-.01?0:position;masterWet=wet;ctx.resume();masterSource=ctx.createBufferSource();masterSource.buffer=wet?masterCache.wet:masterCache.dry;masterGainNode=ctx.createGain();masterSource.connect(masterGainNode);masterGainNode.connect(ctx.destination);updateMasterGain();masterStart=ctx.currentTime;masterSource.onended=()=>{masterSource=null;masterOffset=0;$('#masterDry').textContent='▶ Före';$('#masterWet').textContent='▶ Efter'};masterSource.start(0,masterOffset);$('#masterDry').textContent=wet?'▶ Före':'● Före';$('#masterWet').textContent=wet?'● Efter':'▶ Efter';masterTick()}
+function masterTick(){if(!masterSource)return;const position=masterPosition();$('#masterSeek').value=position;$('#masterTime').textContent=Math.floor(position/60)+':'+String(Math.floor(position%60)).padStart(2,'0');requestAnimationFrame(masterTick)}
+function seekMaster(value){const was=!!masterSource;stopMaster();masterOffset=value;if(was)playMaster(masterWet)}
+async function downloadOrSaved(r,name,status){if((r.headers.get('content-type')||'').includes('application/json')){const result=await r.json();$(status).textContent=result.cancelled?'Sparandet avbröts.':'Sparat: '+(result.name||name);return !result.cancelled}else{const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);$(status).textContent='Export klar: '+name;return true}}
+async function exportMasters(batch){if(!sid||saving)return;const ids=batch?mastering.exportIds:[mastering.selected];if(!ids.length){$('#masterStatus').textContent='Välj minst en profil att exportera.';return}stop();stopMaster();masterBusy(true,'Skapar '+ids.join(', ')+'…');try{const endpoint=batch?(/Windows/i.test(navigator.userAgent)?'save':'export'):'single';const r=await masterPost(endpoint,masterRequest(ids));await downloadOrSaved(r,batch?mastering.title+' - mastered.zip':mastering.title+' - mastered - '+ids[0]+'.wav','#masterStatus')}catch(e){$('#masterStatus').textContent='Export misslyckades: '+e.message}finally{masterBusy(false)}}
+
+let sideSession=null,sideTracks=[],sideDurations={},sideSaved='';
+function sideDirty(){return !!sideTracks.length&&JSON.stringify(sideRequest())!==sideSaved}
+async function loadSides(files){if(!files.length||saving)return;if(sideDirty()&&!confirm('Öppna nya låtar och lämna osparat sidprojekt?'))return;masterBusy(true);$('#sideStatus').textContent='Öppnar låtar…';try{const fd=new FormData();for(const f of files)fd.append('files',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok)throw new Error(await r.text());const data=await r.json();sideSession=data.sid;sideTracks=data.project?.sideAssembly?.tracks||data.stems.sort((a,b)=>a.localeCompare(b,'sv',{numeric:true})).map(stem=>({stem,side:'A',gap:2}));if(data.project?.sideAssembly){$('#sideTitle').value=data.project.sideAssembly.title;$('#sideRate').value=data.project.sideAssembly.sample_rate;$('#sideBits').value=data.project.sideAssembly.bits}sideDurations={};for(const name of data.stems){const r=await fetch(`/api/stem/${sideSession}/${encodeURIComponent(name)}`);const audio=await ctx.decodeAudioData(await r.arrayBuffer());sideDurations[name]=audio.duration}renderSides();sideSaved=data.project?.sideAssembly?JSON.stringify(sideRequest()):'';saveState();$('#sideSave').disabled=false;$('#sideProjectSave').disabled=false;$('#sideStatus').textContent='Låtar öppnade.'}catch(e){$('#sideStatus').textContent='Kunde inte öppna: '+e.message}finally{masterBusy(false)}}
+function sideRequest(){return {title:$('#sideTitle').value,sample_rate:+$('#sideRate').value,bits:+$('#sideBits').value,tracks:sideTracks}}
+function renderSides(){$('#sideTracks').replaceChildren();sideTracks.forEach((t,i)=>{const row=document.createElement('div'),name=document.createElement('span'),side=document.createElement('select'),gap=document.createElement('input');row.className='side-row';name.textContent=(i+1)+'. '+t.stem;for(const value of ['A','B']){const o=document.createElement('option');o.value=value;o.textContent='Sida '+value;side.append(o)}side.value=t.side;side.setAttribute('aria-label','Sida för '+t.stem);side.onchange=()=>{t.side=side.value;sideLengths()};gap.type='number';gap.min=0;gap.max=30;gap.step=.1;gap.value=t.gap;gap.title='Sekunder före låten, utom sidans första';gap.setAttribute('aria-label','Mellanrum före '+t.stem);gap.onchange=()=>{const value=+gap.value;t.gap=Number.isFinite(value)?Math.max(0,Math.min(30,value)):0;gap.value=t.gap;sideLengths()};row.append(name,side,gap);for(const [text,offset] of [['↑',-1],['↓',1]]){const b=document.createElement('button');b.textContent=text;b.disabled=i+offset<0||i+offset>=sideTracks.length;b.onclick=()=>{[sideTracks[i],sideTracks[i+offset]]=[sideTracks[i+offset],sideTracks[i]];renderSides()};row.append(b)}$('#sideTracks').append(row)});sideLengths()}
+function sideLengths(){const strings=['A','B'].map(side=>{const tracks=sideTracks.filter(t=>t.side===side);const seconds=tracks.reduce((sum,t,i)=>sum+(sideDurations[t.stem]||0)+(i?t.gap:0),0);return `Sida ${side}: ${Math.floor(seconds/60)}:${String(Math.round(seconds%60)).padStart(2,'0')} · ${tracks.length} låtar`});$('#sideDuration').textContent=strings.join(' · ');saveState()}
+async function sideAction(project){if(!sideSession||saving)return;saving=true;$('#sideFields').disabled=true;$('#f').disabled=true;$('#vsel').disabled=true;$('#sideSave').disabled=true;$('#sideProjectSave').disabled=true;$('#sideFiles').disabled=true;$('#sideStatus').textContent='Sparar…';saveState();try{const request=sideRequest();const endpoint=project?`/api/project/${sideSession}`:`/api/master/sides/${sideSession}`;const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(project?{version:3,sideAssembly:request,tracks:{}}:request)});if(!r.ok)throw new Error(await r.text());const saved=await downloadOrSaved(r,request.title+(project?' - sides.vcleaner':' - sides.zip'),'#sideStatus');if(project&&saved)sideSaved=JSON.stringify(request)}catch(e){$('#sideStatus').textContent='Kunde inte spara: '+e.message}finally{saving=false;$('#sideFields').disabled=false;$('#f').disabled=false;$('#vsel').disabled=false;$('#sideSave').disabled=false;$('#sideProjectSave').disabled=false;$('#sideFiles').disabled=false;saveState()}}
+function exportSides(){return sideAction(false)}
+function saveSideProject(){return sideAction(true)}
+
 </script></body></html>
