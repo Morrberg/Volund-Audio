@@ -23,7 +23,7 @@ function wav(freq){
   browser=await chromium.launch({channel:'msedge',headless:true});
   const context=await browser.newContext({viewport:{width:1280,height:820}}),page=await context.newPage();
   await page.goto(fs.readFileSync(urlFile,'utf8'));
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('UI error:',e.message)});
   await page.locator('#f').setInputFiles(paths);
   await page.locator('section.track').nth(3).waitFor();
   assert.deepEqual(await page.locator('section.track header > button').allTextContents(),['1 Lead Vocals.wav','Drums.wav','2 Guitar.wav','10 Guitar.wav']);
@@ -109,7 +109,9 @@ function wav(freq){
   assert.equal(await page.getByLabel('Nivå Drums.wav',{exact:true}).inputValue(),'-3');
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('button',{name:'2 Guitar.wav',exact:true}).click();
-  await page.evaluate(()=>{sel=[1,3];draw()});await page.locator('#panLeft').click();
+  await page.evaluate(()=>{sel=[1,3];draw()});
+  console.log('Pan controls:',await page.evaluate(()=>({vocal,saving,connected:editorPanel.isConnected,panLeft:!!document.querySelector('#panLeft'),panel:editorPanel.outerHTML.slice(0,300),errors:document.querySelector('#masterStatus').textContent})));
+  await page.locator('#panLeft').click();
   const panned=await page.evaluate(async()=>{
     const preview=editedBuffer(vocal),r=await fetch(`/api/export/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stem:vocal,edits})});if(!r.ok)throw new Error(await r.text());const sound=await ctx.decodeAudioData(await r.arrayBuffer());let right=0,left=0,error=0;
     for(let i=Math.round(2.1*sound.sampleRate);i<Math.round(2.2*sound.sampleRate);i++){right=Math.max(right,Math.abs(sound.getChannelData(1)[i]));left+=Math.abs(sound.getChannelData(0)[i]);error=Math.max(error,Math.abs(sound.getChannelData(0)[i]-preview.getChannelData(0)[i]))}
