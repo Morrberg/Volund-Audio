@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 22552)
-Total output lines: 514
-
 <!doctype html>
 <html lang="sv"><head><meta charset="utf-8"><title>Völund Audio</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -173,7 +170,26 @@ function undo(){if(saving)return;if(panUndo.length){redo.push({restoreEdits:edit
 function redoE(){if(!saving&&redo.length){const entry=redo.pop();if(entry.restoreEdits){panUndo.push(edits.slice());edits=entry.restoreEdits.slice()}else{panUndo.push(edits.slice());edits.push(entry)}changed()}}
 
 function panFrame(l,r,p,mono){if(p===0)return [l,r];if(mono&&p<=-1)return [(l+r)/2*Math.SQRT2,0];if(mono&&p>=1)return [0,(l+r)/2*Math.SQRT2];if(mono){const angle=(p+1)*Math.PI/4,source=(l+r)/2;return [source*Math.SQRT2*Math.cos(angle),source*Math.SQRT2*Math.sin(angle)]}if(p<=-1)return [l+r,0];if(p>=1)return [0,r+l];if(p<0){const angle=(p+1)*Math.PI/2;return [l+r*Math.cos(angle),r*Math.sin(angle)]}const angle=p*Math.PI/2;return [l*Math.cos(angle),r+l*Math.sin(angle)]}
-function addPan(mode){if(saving||!vocal)return;if(!sel||sel[1]-sel[0]<.005){$('#saveStatus').textContent='Markera först ett parti i spåret.';return}const positions={left:[-1,-1],center:[0,0],right:[1,1],lr:[-1,1],rl:[1,-1],alternate:[-1,1],custom:[+$('#panPosition').value/100,+$('#panPosition').value/100]},pair=positions[mode];if(!pair)return;const cycles=mode==='a…552 tokens truncated…;playing=false;if(!keep)startOff=0;
+function addPan(mode){if(saving||!vocal)return;if(!sel||sel[1]-sel[0]<.005){$('#saveStatus').textContent='Markera först ett parti i spåret.';return}const positions={left:[-1,-1],center:[0,0],right:[1,1],lr:[-1,1],rl:[1,-1],alternate:[-1,1],custom:[+$('#panPosition').value/100,+$('#panPosition').value/100]},pair=positions[mode];if(!pair)return;const cycles=mode==='alternate'?Math.round(Number($('#panCycles').value)):0;if(!Number.isFinite(cycles)||cycles<0||cycles>32||(mode==='alternate'&&cycles<1)){return}panUndo.push(edits.slice());edits.push({kind:'pan',start:sel[0],end:sel[1],fade:.01,pan_from:pair[0],pan_to:pair[1],pan_cycles:cycles});redo=[];changed()}
+function panLabel(e){const position=p=>p===0?'C':p===-1?'V':p===1?'H':Math.round(Math.abs(p)*100)+' % '+(p<0?'V':'H');return e.pan_cycles?`V ↔ H · ${e.pan_cycles} varv`:e.pan_from===e.pan_to?position(e.pan_from):position(e.pan_from)+' → '+position(e.pan_to)}
+function renderPanEdits(){const list=$('#panEdits');list.replaceChildren();edits.forEach((e,index)=>{if(e.kind!=='pan')return;const row=document.createElement('div'),text=document.createElement('small'),remove=document.createElement('button');row.className='bar';text.textContent=`${e.start.toFixed(2)}–${e.end.toFixed(2)} s · ${panLabel(e)}`;remove.textContent='Ta bort panorering';remove.onclick=()=>{if(saving)return;panUndo.push(edits.slice());edits.splice(index,1);redo=[];changed()};row.append(text,remove);list.append(row)})}
+
+function ab(){useEd=!useEd;$("#abb").textContent="Visar: "+(useEd?"Redigerad":"Original");changed()}
+
+// ---- uppspelning (alla stems synkade, bara sångspåret påverkas av redigeringar)
+function pos(){
+  if(!playing)return startOff;
+  return Math.min(startOff+ctx.currentTime-startT,bufs[vocal].duration)}
+function play(off,dur){stopAlbumPreview();
+  stopMix();stopMaster();stop(true);ctx.resume();const lp=loop&&sel&&dur===undefined;if(lp)off=sel[0];
+  const anySolo=names.some(n=>tracks[n]?.solo&&!tracks[n]?.mute);
+  srcs=names.filter(n=>off<bufs[n].duration&&!tracks[n]?.mute&&(!anySolo||tracks[n]?.solo)).map(n=>{const s=ctx.createBufferSource();s.buffer=useEd?editedBuffer(n):bufs[n];const g=ctx.createGain();g.gain.value=10**((tracks[n]?.gain_db||0)/20);s.connect(g);g.connect(ctx.destination);
+    if(lp){s.loop=true;s.loopStart=sel[0];s.loopEnd=sel[1]}return s});
+  srcs.forEach(s=>dur===undefined?s.start(0,off):s.start(0,off,dur));
+  startT=ctx.currentTime;startOff=off;playing=true;tick()}
+function stop(keep){
+  if(keep&&playing)startOff=pos();
+  srcs.forEach(s=>{try{s.stop()}catch{}});srcs=[];playing=false;if(!keep)startOff=0;
   $("#pp").textContent="▶ Spela";draw()}
 function playBtn(){if(!vocal)return;if(playing){stop(true)}else{play(startOff);}$("#pp").textContent=playing?"❚❚ Paus":"▶ Spela"}
 function selPlay(){if(sel)play(sel[0],sel[1]-sel[0])}
