@@ -4,9 +4,9 @@
 mod metadata;
 mod mastering;
 mod album;
-#[cfg(target_os="windows")]
+#[cfg(not(target_os="freebsd"))]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-#[cfg(target_os="windows")]
+#[cfg(not(target_os="freebsd"))]
 fn ui_text(sv: &'static str, en: &'static str) -> &'static str {if ENGLISH.load(std::sync::atomic::Ordering::Relaxed){en}else{sv}}
 
 
@@ -17,6 +17,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use tower_http::cors::CorsLayer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -209,6 +210,13 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/master/sides/:sid", post(mastering::sides))
         .route("/api/album/analyze/:sid", post(album::analyze))
         .route("/api/album/export/:sid", post(album::export))
+        .layer(CorsLayer::new()
+            .allow_origin([
+                "tauri://localhost".parse().unwrap(),
+                "http://tauri.localhost".parse().unwrap(),
+            ])
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+            .allow_headers([header::CONTENT_TYPE]))
         .layer(DefaultBodyLimit::max(2 << 30))
         .with_state(dir);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -241,52 +249,95 @@ async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) ->
     { let _ = (state, sid, req); Err(bad("Använd Exportera sångspår i webbläsarversionen")) }
 }
 
-fn main() {
+fn start_server() -> String {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         tokio::runtime::Runtime::new().expect("kan inte starta ljudserver").block_on(serve(tx));
     });
-    let url = rx.recv().expect("ljudservern kunde inte starta");
-    // CI uses the same embedded UI and API without needing an interactive desktop.
+    rx.recv().expect("ljudservern kunde inte starta")
+}
+
+fn is_server_test_mode(url: &str) -> bool {
     if let Ok(path) = std::env::var("VOCAL_CLEANER_TEST_URL_FILE") {
-        fs::write(path, &url).expect("kan inte lämna serveradressen till UI-testet");
+        fs::write(path, url).expect("kan inte lämna serveradressen till UI-testet");
     }
-    if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
-        loop { std::thread::park(); }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
-        let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().with_title("Völund Audio")
-            .with_inner_size(tao::dpi::LogicalSize::new(1320.0, 860.0))
-            .with_window_icon(tao::window::Icon::from_rgba(include_bytes!("../assets/icon.rgba").to_vec(), 64, 64).ok())
-            .build(&event_loop).expect("kan inte skapa programfönster");
-        let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let ipc_dirty = dirty.clone();
-        let _webview = wry::WebViewBuilder::new(&window).with_url(&url)
-            .with_ipc_handler(move |request| { match request.body().as_str() {
-                "language:en"=>ENGLISH.store(true,std::sync::atomic::Ordering::Relaxed),
-                "language:sv"=>ENGLISH.store(false,std::sync::atomic::Ordering::Relaxed),
-                value=>ipc_dirty.store(value == "dirty", std::sync::atomic::Ordering::Relaxed),
-            } })
-            .build().expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
-        event_loop.run(move |event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
-            if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
-                let close = !dirty.load(std::sync::atomic::Ordering::Relaxed) ||
-                    rfd::MessageDialog::new().set_title(ui_text("Osparat projekt", "Unsaved project"))
-                    .set_description(ui_text("Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.", "The project has unsaved changes. Close anyway? Choose No and Save project to keep your work."))
-                    .set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
-                if close { *control_flow = ControlFlow::Exit; }
+    std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1")
+}
+
+fn wait_for_server_shutdown() -> ! {
+    loop { std::thread::park(); }
+}
+
+#[cfg(not(target_os = "freebsd"))]
+#[derive(Clone)]
+struct ApiOrigin(String);
+
+#[cfg(not(target_os = "freebsd"))]
+#[derive(Default)]
+struct ProjectDirty(std::sync::atomic::AtomicBool);
+
+#[cfg(not(target_os = "freebsd"))]
+#[tauri::command]
+fn api_origin(origin: tauri::State<'_, ApiOrigin>) -> String { origin.0.clone() }
+
+#[cfg(not(target_os = "freebsd"))]
+#[tauri::command]
+fn set_project_dirty(dirty: bool, state: tauri::State<'_, ProjectDirty>) {
+    state.0.store(dirty, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[cfg(not(target_os = "freebsd"))]
+#[tauri::command]
+fn set_language(language: String) {
+    ENGLISH.store(language == "en", std::sync::atomic::Ordering::Relaxed);
+}
+
+#[cfg(not(target_os = "freebsd"))]
+fn main() {
+    use tauri::{Manager, WindowEvent};
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+
+    let origin = start_server();
+    if is_server_test_mode(&origin) { wait_for_server_shutdown(); }
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .manage(ApiOrigin(origin))
+        .manage(ProjectDirty::default())
+        .invoke_handler(tauri::generate_handler![api_origin, set_project_dirty, set_language])
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let dirty = window.state::<ProjectDirty>().0.load(std::sync::atomic::Ordering::Relaxed);
+                if dirty {
+                    api.prevent_close();
+                    let closing_window = window.clone();
+                    window.dialog()
+                        .message(ui_text(
+                            "Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.",
+                            "The project has unsaved changes. Close anyway? Choose No and Save project to keep them.",
+                        ))
+                        .title(ui_text("Osparat projekt", "Unsaved project"))
+                        .buttons(MessageDialogButtons::OkCancelCustom(
+                            ui_text("Stäng ändå", "Close anyway"),
+                            ui_text("Fortsätt arbeta", "Keep working"),
+                        ))
+                        .show(move |close| {
+                            if close { let _ = closing_window.destroy(); }
+                        });
+                }
             }
-        });
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = open::that(&url);
-        loop { std::thread::park(); }
-    }
+        })
+        .run(tauri::generate_context!())
+        .expect("Völund Audio kunde inte starta");
+}
+
+// FreeBSD is a best-effort browser build while native Tauri packaging there is unverified.
+#[cfg(target_os = "freebsd")]
+fn main() {
+    let url = start_server();
+    if is_server_test_mode(&url) { wait_for_server_shutdown(); }
+    let _ = open::that(&url);
+    wait_for_server_shutdown();
 }
 
 fn project_zip(dir: &FsPath, project: &Value) -> R<Vec<u8>> {
