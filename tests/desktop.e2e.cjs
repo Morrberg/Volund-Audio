@@ -15,7 +15,7 @@ function wav(freq){
  const names=['10 Guitar.wav','2 Guitar.wav','1 Lead Vocals.wav','Drums.wav'];
  const paths=names.map((n,i)=>{const p=path.join(temp,n);fs.writeFileSync(p,wav(100+i*75));return p});
  const urlFile=path.join(temp,'server.url');
- const app=spawn(path.resolve('target/release/vocal-cleaner.exe'),[],{env:{...process.env,VOCAL_CLEANER_SERVER_ONLY:'1',VOCAL_CLEANER_TEST_URL_FILE:urlFile},stdio:['ignore','pipe','pipe']});
+ const app=spawn(path.resolve('target/release/volund-audio.exe'),[],{env:{...process.env,VOCAL_CLEANER_SERVER_ONLY:'1',VOCAL_CLEANER_TEST_URL_FILE:urlFile},stdio:['ignore','pipe','pipe']});
  let browser,appLog='';app.stdout.on('data',b=>appLog+=b);app.stderr.on('data',b=>appLog+=b);
  try{
   for(let i=0;i<40&&!fs.existsSync(urlFile);i++){if(app.exitCode!==null)break;await pause(250)}
@@ -23,6 +23,9 @@ function wav(freq){
   browser=await chromium.launch({channel:'msedge',headless:true});
   const context=await browser.newContext({viewport:{width:1280,height:820}}),page=await context.newPage();
   await page.goto(fs.readFileSync(urlFile,'utf8'));
+  assert.equal(await page.title(),'Völund Audio');
+  assert.equal(await page.locator('h1').textContent(),'Völund Audio');
+  assert.equal(await page.locator('.brand p').textContent(),'Smid fram ditt sound');
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('UI error:',e.message)});
   await page.locator('#f').setInputFiles(paths);
   await page.locator('section.track').nth(3).waitFor();
@@ -149,10 +152,12 @@ function wav(freq){
   await page.getByRole('button',{name:'Gör om klipp',exact:true}).click();
   await page.locator('#language').selectOption('en');
   await page.getByRole('button',{name:'Cut selection',exact:true}).waitFor();
+  assert.equal(await page.locator('.brand p').textContent(),'Forge your sound');
   assert.equal(await page.locator('#masterProfile option[value="Kassett"]').textContent(),'Cassette');
   assert.equal(await page.evaluate(()=>mastering.profiles.Kassett.id),'Kassett');
   assert.equal(await page.getByRole('button',{name:'Drums.wav',exact:true}).textContent(),'Drums.wav');
   await page.getByRole('button',{name:'Om / About',exact:true}).click();await page.getByText('A local audio editor for stems, stereo mixing and mastering.',{exact:true}).waitFor();
+  assert.ok((await page.locator('#about').textContent()).includes('master smith Völund'));
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.screenshot({path:'target/ui-mix-english.png',fullPage:true});
   await page.locator('#language').selectOption('sv');await page.getByRole('button',{name:'Klipp bort markering',exact:true}).waitFor();

@@ -1,7 +1,8 @@
 [package]
-name = "vocal-cleaner"
-version = "0.6.0"
+name = "volund-audio"
+version = "0.7.0"
 edition = "2021"
+description = "Völund Audio — local stem editor, mixing and mastering"
 
 [dependencies]
 axum = { version = "0.7", features = ["multipart"] }

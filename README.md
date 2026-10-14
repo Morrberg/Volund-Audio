@@ -1,10 +1,14 @@
-# Vocal Cleaner 0.6
+# Völund Audio 0.7
 
-Lokalt verktyg för att tysta oönskade vokala inslag i Suno-stems.
+**Smid fram ditt sound.**
+
+Lokal ljudeditor för stems, stereomix och mastering. Uppkallad efter mästersmeden Völund: här smider vi låtar.
+
+Tidigare namn: Vocal Cleaner. Befintliga `.vcleaner`-projekt öppnas och sparas som förut. Ljudformat, projektstruktur och tidigare språk-/temainställningar behålls.
 
 ## Windows
 
-Dubbelklicka på `vocal-cleaner.exe`. Appen öppnar ett eget fönster och stängs när
+Dubbelklicka på `volund-audio.exe`. Appen öppnar ett eget fönster och stängs när
 fönstret stängs. Microsoft Edge WebView2 Runtime behöver finnas installerad.
 Gränssnittet använder en inbäddad webbvy; ljudbehandlingen körs lokalt i Rust.
 Inget ljud skickas till en molntjänst. På andra operativsystem öppnas webbläsaren.
@@ -29,7 +33,7 @@ Detektionen använder energi och kontextregler, inte en AI-modell.
 ## Bygga
 
 Installera Rust och kör `cargo build --release`.
-Windows-resultat: `target/release/vocal-cleaner.exe`.
+Windows-resultat: `target/release/volund-audio.exe`.
 GitHub Actions bygger och testar Windows-versionen och laddar upp exe som artifact.
 `node tests/editor.test.cjs` testar stembyte, ångra och projektets sparstatus.
 
@@ -91,3 +95,8 @@ Stems behåller sin längd, synk och redigeringar. Mixens klipp används före a
 Välj **Svenska / English** i överkanten; språkvalet sparas på datorn. Filnamn och metadata ändras inte när du byter språk. **Om / About** visar version, syfte och licens.
 
 English: Open **Mix · cut before mastering**, select a region and choose **Cut selection** or **Keep selection only**. Undo/redo affects only mix cuts. Original stems remain synchronized. Cuts are saved in the project and applied before every mastering profile. Export the edited premaster as a 24-bit stereo WAV or export the separate mastered versions.
+
+
+## English
+
+**Völund Audio — Forge your sound.** A local stem editor, stereo mix editor and mastering tool, named after the legendary master smith Völund. Previously called Vocal Cleaner. Run `volund-audio.exe` on Windows. Existing `.vcleaner` projects remain compatible.
