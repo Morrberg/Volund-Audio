@@ -318,8 +318,8 @@ fn main() {
                         ))
                         .title(ui_text("Osparat projekt", "Unsaved project"))
                         .buttons(MessageDialogButtons::OkCancelCustom(
-                            ui_text("Stäng ändå", "Close anyway"),
-                            ui_text("Fortsätt arbeta", "Keep working"),
+                            ui_text("Stäng ändå", "Close anyway").to_string(),
+                            ui_text("Fortsätt arbeta", "Keep working").to_string(),
                         ))
                         .show(move |close| {
                             if close { let _ = closing_window.destroy(); }
