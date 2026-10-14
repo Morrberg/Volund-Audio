@@ -347,7 +347,7 @@ pub async fn preview(State(root):State<std::path::PathBuf>,Path(sid):Path<String
 async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
     #[cfg(target_os="windows")]
     if native && std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref()!=Ok("1") {
-        let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title("Spara masteringexport").add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
+        let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title(crate::ui_text("Spara ljudexport", "Save audio export")).add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
         let Some(path)=path else{return Ok(Json(json!({"cancelled":true})).into_response())};
         std::fs::write(&path,bytes).map_err(bad)?;return Ok(Json(json!({"cancelled":false,"name":path.file_name().unwrap_or_default().to_string_lossy()})).into_response());
     }

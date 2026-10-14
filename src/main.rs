@@ -3,6 +3,11 @@
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
 mod mastering;
+#[cfg(target_os="windows")]
+static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+#[cfg(target_os="windows")]
+fn ui_text(sv: &'static str, en: &'static str) -> &'static str {if ENGLISH.load(std::sync::atomic::Ordering::Relaxed){en}else{sv}}
+
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
@@ -216,7 +221,7 @@ async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) ->
         let name = fname(&req.0.stem);
         let suggested = format!("{}_cleaned.wav", FsPath::new(&name).file_stem().unwrap_or_default().to_string_lossy());
         let path = tokio::task::spawn_blocking(move || rfd::FileDialog::new()
-            .set_title("Spara redigerat sångspår")
+            .set_title(ui_text("Spara redigerat spår", "Save edited track"))
             .add_filter("WAV-ljud", &["wav"])
             .set_file_name(&suggested).save_file()).await.map_err(bad)?;
         let Some(path) = path else { return Ok(Json(json!({"cancelled": true}))); };
@@ -257,14 +262,18 @@ fn main() {
         let dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let ipc_dirty = dirty.clone();
         let _webview = wry::WebViewBuilder::new(&window).with_url(&url)
-            .with_ipc_handler(move |request| { ipc_dirty.store(request.body() == "dirty", std::sync::atomic::Ordering::Relaxed); })
+            .with_ipc_handler(move |request| { match request.body().as_str() {
+                "language:en"=>ENGLISH.store(true,std::sync::atomic::Ordering::Relaxed),
+                "language:sv"=>ENGLISH.store(false,std::sync::atomic::Ordering::Relaxed),
+                value=>ipc_dirty.store(value == "dirty", std::sync::atomic::Ordering::Relaxed),
+            } })
             .build().expect("Kan inte starta WebView2. Installera Microsoft Edge WebView2 Runtime.");
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             if let Event::WindowEvent { event: WindowEvent::CloseRequested, .. } = event {
                 let close = !dirty.load(std::sync::atomic::Ordering::Relaxed) ||
-                    rfd::MessageDialog::new().set_title("Osparat projekt")
-                    .set_description("Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.")
+                    rfd::MessageDialog::new().set_title(ui_text("Osparat projekt", "Unsaved project"))
+                    .set_description(ui_text("Projektet har osparade ändringar. Stäng ändå? Välj Nej och Spara projekt för att behålla dem.", "The project has unsaved changes. Close anyway? Choose No and Save project to keep your work."))
                     .set_buttons(rfd::MessageButtons::YesNo).show() == rfd::MessageDialogResult::Yes;
                 if close { *control_flow = ControlFlow::Exit; }
             }
@@ -302,7 +311,7 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
     #[cfg(target_os = "windows")]
     {
         let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()
-            .set_title("Spara Vocal Cleaner-projekt").add_filter("Vocal Cleaner-projekt", &["vcleaner"])
+            .set_title(ui_text("Spara Vocal Cleaner-projekt", "Save Vocal Cleaner project")).add_filter("Vocal Cleaner", &["vcleaner"])
             .set_file_name("Vocal-Cleaner.vcleaner").save_file()).await.map_err(bad)?;
         let Some(path) = path else { return Ok(Json(json!({"cancelled": true})).into_response()); };
         fs::write(path, bytes).map_err(bad)?;
