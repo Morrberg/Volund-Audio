@@ -345,7 +345,7 @@ pub async fn preview(State(root):State<std::path::PathBuf>,Path(sid):Path<String
     Ok(([(header::CONTENT_TYPE,"audio/wav".into())],bytes))
 }
 pub(crate) async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
-    #[cfg(target_os="windows")]
+    #[cfg(not(target_os="freebsd"))]
     if native && std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref()!=Ok("1") {
         let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title(crate::ui_text("Spara ljudexport", "Save audio export")).add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
         let Some(path)=path else{return Ok(Json(json!({"cancelled":true})).into_response())};

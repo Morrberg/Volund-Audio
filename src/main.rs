@@ -227,7 +227,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
 }
 
 async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) -> R<Json<Value>> {
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "freebsd"))]
     {
         let name = fname(&req.0.stem);
         let suggested = format!("{}_cleaned.wav", FsPath::new(&name).file_stem().unwrap_or_default().to_string_lossy());
@@ -245,7 +245,7 @@ async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) ->
         fs::write(&path, bytes).map_err(bad)?;
         Ok(Json(json!({"cancelled": false, "name": path.file_name().unwrap_or_default().to_string_lossy()})))
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "freebsd")]
     { let _ = (state, sid, req); Err(bad("Använd Exportera sångspår i webbläsarversionen")) }
 }
 
@@ -362,7 +362,7 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
     if std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref() == Ok("1") {
         return Ok(([(header::CONTENT_TYPE, "application/zip")], bytes).into_response());
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "freebsd"))]
     {
         let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()
             .set_title(ui_text("Spara Völund Audio-projekt", "Save Völund Audio project")).add_filter("Völund Audio", &["vcleaner"])
@@ -371,7 +371,7 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
         fs::write(path, bytes).map_err(bad)?;
         Ok(Json(json!({"cancelled": false})).into_response())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "freebsd")]
     { Ok(([(header::CONTENT_TYPE, "application/zip"),
         (header::CONTENT_DISPOSITION, "attachment; filename=Volund-Audio.vcleaner")], bytes).into_response()) }
 }
