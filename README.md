@@ -1,117 +1,86 @@
-# Völund Audio 0.8
+<p align="center"><img src="assets/icon.svg" width="80" alt="Völund Audio"></p>
+
+# Völund Audio
 
 **Smid fram ditt sound.**
 
-Lokal ljudeditor för stems, stereomix och mastering. Uppkallad efter mästersmeden Völund: här smider vi låtar.
+En lokal ljudeditor för att redigera stems, forma en stereomix och skapa masterversioner för streaming, vinyl, CD och kassett. Namnet kommer från mästersmeden Völund: här smider vi låtar.
 
-Tidigare namn: Vocal Cleaner. Befintliga `.vcleaner`-projekt öppnas och sparas som förut. Ljudformat, projektstruktur och tidigare språk-/temainställningar behålls.
+**Aktuell version: 0.8.0 · Windows-program · Svenskt och engelskt gränssnitt · MIT-licens**
 
-## Windows
+[Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
 
-Dubbelklicka på `volund-audio.exe`. Appen öppnar ett eget fönster och stängs när
-fönstret stängs. Microsoft Edge WebView2 Runtime behöver finnas installerad.
-Gränssnittet använder en inbäddad webbvy; ljudbehandlingen körs lokalt i Rust.
-Inget ljud skickas till en molntjänst. På andra operativsystem öppnas webbläsaren.
+## Vad kan programmet göra?
 
-1. Öppna Sunos ZIP med alla stems, eller WAV/MP3/FLAC-filer.
-2. Alla stems visas samtidigt på en gemensam tidslinje. Klicka på ett spår för att redigera det. Zoom och panorering gäller alla spår. Välj sångspår. Markera, tysta, tona in/ut och lyssna på resultatet.
-3. Spåren sorteras efter instrumentnamn (sång, bakgrundssång, trummor, percussion, bas, gitarr, klaviatur, synth, stråkar, blås, effekter och övrigt), med naturlig nummersortering inom gruppen. Kontrollraden följer det aktiva spåret. Byt mellan stems: varje spår behåller sina redigeringar och sin ångrahistorik.
-4. **Spara sångspår…** (Ctrl+S) sparar det valda redigerade spåret som WAV,
-   32-bit float med originalets samplingsfrekvens och antal kanaler.
-   Välj en ny fil, exempelvis `Lead Vocals_cleaned.wav`.
-5. Öppna **Metadata för valt spår** för att se stödda textfält, taggformat och antal inbäddade bilder/binära fält. Ändra eller ta bort textfält, lägg till nya, rensa metadata eller återställ från original. Ändringarna skrivs till WAV-exporten och sparas i projektet. Stödda metadatafält skrivs som ID3 i WAV; spelare kan visa olika mycket av dem. Originalets tekniska ljudegenskaper och filer behålls. Projektets originalljud innehåller fortfarande originalmetadata, tillsammans med de sparade metadataändringarna.
-6. **Spara projekt…** sparar alla importerade stems, redigeringar och ångrahistorik
-   i en `.vcleaner`-fil. Öppna den via samma filväljare för att fortsätta senare.
+| Del | Funktioner |
+|---|---|
+| **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |
+| **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
+| **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
+| **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
+| **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
 
-Att spara WAV sparar inte hela projektet. Projektfiler kan bli stora eftersom
-originalens ljuddata ingår. Avbruten spardialog behåller redigeringarna i appen.
-Programfönstret varnar vid osparade projektändringar. Stängning sparar inte automatiskt.
+Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
 
-Dra = markera, klick = position, hjul = zooma, Skift+hjul = panorera.
-Detektionen använder energi och kontextregler, inte en AI-modell.
+## Kom igång
 
-## Bygga
+1. Öppna [GitHub Actions](https://github.com/Morrberg/Vocal-cleaner/actions) och välj en lyckad körning för den version du vill använda.
+2. Hämta **Volund-Audio-Windows** under **Artifacts** och packa upp ZIP-filen. GitHub kan kräva inloggning för nedladdningen.
+3. Starta `volund-audio.exe`. Windows-versionen använder ett eget programfönster med inbäddad webbvy och kräver [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+4. Välj **Öppna stems / projekt** och öppna stems för **en låt**, exempelvis Sunos ZIP-fil.
+5. Klicka på ett spår, markera ett parti och välj exempelvis **Tysta**. Lyssna på resultatet och välj **Spara projekt…** för att kunna fortsätta senare.
 
-Installera Rust och kör `cargo build --release`.
-Windows-resultat: `target/release/volund-audio.exe`.
-GitHub Actions bygger och testar Windows-versionen och laddar upp exe som artifact.
-`node tests/editor.test.cjs` testar stembyte, ångra och projektets sparstatus.
+Programmet är osignerat, så Windows SmartScreen kan visa en varning. Se [manualens startavsnitt](docs/MANUAL.sv.md#starta) för hur du kontrollerar källan och går vidare med ett betrott bygge.
 
-Vågformernas toppvärden cachas. Extra minne för själva flerspårsvyn är litet; avkodat ljud dominerar minnesåtgången. Spår med redigeringar får extra ljudbuffertar för förhandslyssning. Spår utan redigeringar återanvänder originalbufferten.
+## Ett vanligt arbetsflöde
 
-MIT-licens.
+1. **Redigera stems:** ta bort ett extra sångljud genom att tysta just det partiet; de andra spåren behåller sin synk.
+2. **Forma mixen:** balansera spårnivåerna och lägg eventuell panorering. Klipp intro eller outro i **Mix · klipp före mastering**.
+3. **Skapa utgåvor:** justera masteringprofilerna, jämför före/efter och exportera de versioner du behöver.
+4. **Samla albumet:** öppna färdiga låtar från **samma profil** i albumdelens egen filväljare. Nivåmatcha och exportera låtar eller sida A/B.
 
-## Utseende och ikon
+Albumdelen använder kompletta låtar som underlag. Att öppna flera låtar som stems i huvudvyn skulle i stället lägga dem ovanpå varandra i en mix.
 
-Mörkt och ljust tema kan växlas i programmet. Spårtyperna har olika vågformsfärger, det aktiva spåret markeras tydligt och markerad tid/längd visas vid kontrollerna.
+## Spara rätt sak
 
-`assets/icon.svg` är ikonens vektorkälla. `icon.ico` bäddas in i Windows-exe via `build.rs`, och `icon.rgba` används för fönsterikonen.
+| Knapp | Resultat |
+|---|---|
+| **Spara valt spår…** / **Ctrl+S** | En redigerad WAV av det aktiva spåret. |
+| **Spara redigerad mix…** | En stereomix före mastering. |
+| **Spara aktuell profil som WAV…** / **Spara valda versioner som ZIP…** | Färdiga masterfiler; ZIP-exporten innehåller även en mätrapport. |
+| **Spara projekt…** | Originalljud, stemredigeringar, mixklipp, mixnivåer och masteringinställningar i en `.vcleaner`-fil. |
+| **Spara sidprojekt…** | Albumets originallåtar, ordning, sidor och nivåmatchningsinställningar i en `.vcleaner`-fil. |
 
-Windows-CI testar gränssnittet och Rust-API:t i headless Microsoft Edge med syntetiskt ljud; skärmbilder av båda temana sparas som artifact. Serverläget som används av testet aktiveras endast via testmiljövariabler. Själva Windows-fönstret och native spardialoger behöver även provköras manuellt.
+**Att exportera ljud sparar inte projektet.** Programmet har ingen automatisk projektsparning eller kraschåterställning. Originalfilerna på datorn skrivs inte över av redigeringarna; välj ett nytt filnamn när du exporterar.
 
-## 0.4 — mix och masteringstudio
+## Manual och exempel
 
-1. Öppna stems och redigera dem. Justera varje spårs nivå (−60 till +12 dB), mute och solo. Dessa val gäller mixlyssning och mastering, och sparas i projektet. En vanlig export av valt spår behåller spårets egna nivåer.
-2. Öppna **Masteringstudio**, ange låttitel/artist/album och välj Spotify, Vinyl, CD eller Kassett. Varje profil har separata inställningar för trebandig EQ, kompression, limiter, LUFS-mål, true-peak-gräns, lågskärning, smal djupbas, samplingsfrekvens och bitdjup. Äldre projekt öppnas med standardprofiler.
-3. **Analysera & föreslå** mäter hela mixen och den valda profilen. Råd är enkla signalbaserade regler; ingen AI och ingen automatisk ändring av inställningar. LUFS och LRA mäts med Rust-biblioteket `ebur128` (EBU R128); true peak använder bibliotekets interpolerade mätning. Mycket kort eller tyst ljud kan sakna LUFS-värde.
-4. **Skapa förhandslyssning** bearbetar hela låten. Växla Före/Efter vid samma position. Volymmatchning sänker den starkare versionen och playback håller även toppmarginal. Ändrad mix eller profil kräver en ny förhandslyssning. Export är inte beroende av förhandslyssningen.
-5. **Spara valda versioner som ZIP** ger exempelvis `Låt 1 - mastered - Spotify.wav` och `Låt 1 - mastered - Vinyl.wav`, plus `Mastering-report.json` med inställningar och uppmätta resultat för varje version. **Spara aktuell profil som WAV** sparar en enda version. Windows använder native spardialoger. Projektets titel/artist/album skrivs till masterns WAV-taggar; metadata från en enskild stem kopieras inte till stereomixen.
-6. **Spara projekt** bevarar mixval, samtliga masteringprofiler och redigeringar tillsammans med originalljudet. Att exportera WAV/ZIP sparar inte projektet.
+[Den svenska manualen](docs/MANUAL.sv.md) går igenom kontrollerna och innehåller exempel på att:
 
-Alla profiler utgår från samma mix före mastering. Omsampling använder bandbegränsad, symmetrisk windowed-sinc med fast ljudlängd; mono dupliceras till stereo. Blandade samplingsfrekvenser stöds, fler än två kanaler avvisas. Processen är offline och använder en stem åt gången på serversidan, plus mix och bearbetningsbuffert. Långa projekt och exportarkiv kräver fortfarande RAM. Mixen får vara högst 60 minuter och 64 stems.
+- tysta ett oönskat ”Wrooow” utan att rubba stemsens synk;
+- låta trummor pendla mellan vänster och höger;
+- korta ett intro i mixen före alla masterversioner;
+- exportera samma låt för flera format;
+- nivåmatcha ett album och behålla ett avsiktligt lugnare intro.
 
-Kompressorn är stereolänkad med mjukt knä och 25 ms attack/150 ms release. Limitern är stereolänkad med 5 ms lookahead och 80 ms release. Nivåhöjning begränsas till 12 dB; toppgränsen prioriteras över LUFS-målet. Efter limiter och slutlig TPDF-dither mäts true peak igen; vid behov sänks hela signalen. Rapporten visar faktisk nivå, maximal kompressor/limiterreduktion och säkerhetssänkning. Export använder 16/24-bit PCM, med dither vid slutlig heltalskvantisering; exakt digital tystnad behålls.
+Profilernas standardvärden är utgångspunkter, inte garantier för leverans till en viss tjänst eller tillverkare. Vinyl och kassett behöver anpassas till mottagarens krav. CD-exporten är WAV-ljud, inte en komplett DDP-master. Albumnivåmatchningen jämnar ut ljudstyrka; den gör ingen automatisk matchning av EQ eller klang.
 
-### Profiler och praktiska gränser
+## Bygga och testa
 
-- **Spotify:** standard −14 LUFS / −1 dBTP, justerbart. −14 LUFS är en rekommenderad utgångspunkt, inget obligatoriskt leveransmål. En starkare master ger råd om −2 dBTP-marginal. Källan är Spotifys [masteringråd](https://support.spotify.com/us/artists/article/loudness-normalization/).
-- **Vinyl:** inget LUFS-mål som standard, ingen kompression eller limiter, −3 dBTP, lågskärning vid 20 Hz och smalare stereo under 120 Hz. Inga skarpa påståenden om "vinylsäker" export: sidlängd, låtordning, sibilans och skärverkets bedömning återstår. Funktionen är inte en RIAA-encoder eller en skärsimulator. Stereo i basen och diskantenergi är enkla indikatorer, ingen sibilansdetektor.
-- **CD:** 16 bit / 44,1 kHz med dither. Filerna är WAV-ljud; DDP, PQ-index, CD-Text och en färdig pressningsmaster ingår inte.
-- **Kassett:** inget LUFS-mål som standard. 24 bit / 44,1 kHz som justerbar utgångspunkt. Ingen tapesimulering, Dolby-kodning eller förkompensation som kan bli fel för dupliceringsföretagets utrustning. Kontrollera [leveranskrav hos tillverkaren](https://www.duplication.com/upload.php).
+Installera Rust och Node.js för respektive kontroll:
 
-### Album: sida A och B
+```sh
+cargo test
+node tests/editor.test.cjs
+cargo build --release
+```
 
-Öppna färdiga WAV/FLAC-masterfiler i **Album** via dess egen filväljare. Välj ordning, sida och sekunder före varje låt (sidans första låt får inget automatiskt mellanrum). Export ger en WAV per använd sida, tidsatt låtlista och JSON-rapport. Ingen ny EQ, kompression eller normalisering görs; omsampling och slutlig dither kan behövas. Sammanställningen sänks som helhet endast om −1 dBTP överskrids. Detta är ett leveransunderlag, inte en garanterad skär- eller dupliceringsmaster. Spara ett **sidprojekt** och återöppna det med Albumets filväljare för att bevara ordning, sidor, mellanrum och originalljud. Vinyl/kassett bör sammanställas från respektive masterversion, inte streamingmastern.
+Windows-bygget skapar `target/release/volund-audio.exe`. `build.bat` är en genväg till releasebygget. På andra operativsystem öppnas gränssnittet i webbläsaren.
 
-Testerna täcker referens-LUFS, true peak även vid transienter/hög diskant, omsamplingens nivå och aliasdämpning, stereo, tystade partier, profilers PCM-format, filnamn, ZIP-rapporter och sidexport. Windows UI-testet kontrollerar profilval, mixkontroller, förhandslyssning, samtliga fyra exporter, metadata och projektåteröppning. Native programfönster/spardialoger behöver fortfarande provköras manuellt.
+[GitHub Actions-flödet](.github/workflows/rust.yml) kör Rust-tester på Linux och Windows samt gränssnitts- och exporttester i Microsoft Edge på Windows. Flödet sparar även skärmbilder som artifact. Det inbäddade Windows-fönstret och de vanliga spardialogerna behöver kompletteras med manuell provkörning.
 
-## 0.5 — panorering av markeringar
+## Projektet
 
-Markera ett parti i ett spår och välj **Vänster**, **Center**, **Höger**, en glidning mellan sidorna eller **Pendla vänster ↔ höger** (1–32 hela varv över markeringen). Reglaget ger valfri fast position mellan sidorna. Bara det markerade partiet på det valda spåret påverkas. Markeringens första/sista 10 ms övergår mjukt från/till spårets tidigare ljudbild. Andra spår ändras inte.
+Programmet hette tidigare **Vocal Cleaner**. Äldre `.vcleaner`-projekt stöds fortfarande. GitHub-repot behåller tills vidare namnet `Vocal-cleaner`.
 
-Panorering sparas som en redigering, med ångra/gör om och en lista där en enskild panorering kan tas bort. Vid överlapp används den senaste panoreringen i överlappet; Center kan därför återställa ett redan panorerat parti. Center behåller originalets naturliga stereobild, det gör inte stereoljud till mono. Vågformen visar båda kanalernas toppar tillsammans; lila markeringar visar panorerade partier.
-
-Stereopan använder equal-power-crossfeed: båda originalkanalerna kan flyttas till samma sida utan att den ena kanalens innehåll kastas bort. Mono med panorering exporteras som stereo med equal-power-gain (center motsvarar originalets mono i båda högtalarna). Utan panorering behåller vanlig stemexport originalets kanalantal. Summering till en sida kan höja topparna; sänk spårnivån vid behov och kontrollera masteringens mätvärden. Ljud som redan är i motfas kan släcka ut varandra vid summering.
-
-Samma beräkningar används i vanlig förhandslyssning, WAV-stemexport, masteringens mix och samtliga masterprofiler. Vinylprofilens inställning för smal djupbas kan minska panoreringens bredd i de lägsta frekvenserna.
-
-
-## 0.6 — klipp i mixen, språk och Om
-
-Öppna **Mix · klipp före mastering** efter att du justerat stems. En ensam WAV kan öppnas via samma import. Dra i mixens vågform eller ange start/slut i sekunder. **Klipp bort markering** tar bort tiden och sammanfogar resten; **Behåll bara markering** trimmar bort allt utanför. **Ångra klipp / Gör om klipp** är en egen historik. Klippen använder den aktuella mixens tidspositioner och 5 ms toningar vid skarvar/trimkanter utan att ändra den beräknade längden ytterligare.
-
-Stems behåller sin längd, synk och redigeringar. Mixens klipp används före alla masteringprofiler, inklusive Före/Efter och analys. **Spara redigerad mix** exporterar en 24-bitars stereo-WAV före mastering vid den valda profilens samplingsfrekvens. Sänk spårnivåerna om PCM-exporten rapporterar toppar över 0 dBFS. Spara projekt för att behålla klipp, ångra/gör om och originalfiler. Äldre projekt öppnas utan mixklipp.
-
-Välj **Svenska / English** i överkanten; språkvalet sparas på datorn. Filnamn och metadata ändras inte när du byter språk. **Om / About** visar version, syfte och licens.
-
-English: Open **Mix · cut before mastering**, select a region and choose **Cut selection** or **Keep selection only**. Undo/redo affects only mix cuts. Original stems remain synchronized. Cuts are saved in the project and applied before every mastering profile. Export the edited premaster as a 24-bit stereo WAV or export the separate mastered versions.
-
-
-## English
-
-**Völund Audio — Forge your sound.** A local stem editor, stereo mix editor and mastering tool, named after the legendary master smith Völund. Previously called Vocal Cleaner. Run `volund-audio.exe` on Windows. Existing `.vcleaner` projects remain compatible.
-
-
-## 0.8 — nivåmatchning över hela albumet
-
-I **Album · nivåmatchning och sida A/B**, öppna färdiga stereolåtar från samma profil: exempelvis alla CD-versioner eller alla vinylversioner. Blanda inte flera leveransversioner av samma låt till ett album. **Analysera albumnivåer** mäter integrerad LUFS och true peak för varje låt vid vald samplingsfrekvens. Det automatiska målet är medianen av de matchade, mätbara låtarna. Eget LUFS-mål kan väljas.
-
-Varje låt får en konstant nivåändring. Ingen ny EQ, kompressor eller limiter tillkommer och låtarnas interna dynamik bevaras. Avmarkera **Matcha** för exempelvis ett avsiktligt lugnare intro; dess normaliseringsgain blir då 0 dB. En egen justering −12 till +12 dB kan läggas efter matchningen. Tysta/mycket korta låtar utan mätbar LUFS normaliseras inte.
-
-Om toppgränsen eller gränsen +12 dB total nivåhöjning kräver det, sänks **alla låtar lika mycket**, även undantagna låtar. Detta bevarar de avsedda nivåskillnaderna och undviker att en transientrik låt ensam blir för svag. Resultattabellen visar den uppnåeliga gemensamma nivån, per-låt-gain och beräknade LUFS-värden. Förhandslyssning Före/Efter finns per låt; lyssna särskilt på övergångarna eftersom LUFS inte garanterar identisk subjektiv ljudstyrka eller klangbalans.
-
-**Spara nivåmatchade låtar som ZIP** ger en numrerad WAV per låt i albumordning och en JSON-rapport med faktiskt uppmätta exportvärden. Stödda originalmetadata bevaras. Samma matchning används vid sida A/B-export; eventuell extra toppmarginal vid skarvar tas gemensamt över båda sidorna. Sidrapporten redovisar även denna justering. Export sker i valt PCM-format med slutlig dither.
-
-**Spara sidprojekt** bevarar originalljud, mål, toppgräns, ordning, sidor, undantag och egna nivåjusteringar. Äldre sidprojekt öppnas med automatisk nivåmatchning avstängd. Originalfilerna ändras inte.
-
-English: Album loudness matching adjusts complete songs using constant per-track gain and an automatic median or custom LUFS target. Exclude intentional quiet tracks or apply a manual offset. Peak/gain constraints lower the entire album equally. Export numbered individual WAVs or sides A/B with measurement reports; save the side project to retain original audio and settings. This matches loudness, not EQ or tonal character.
+Koden omfattas av [MIT-licensen](LICENSE). Ikonens vektorkälla finns i [assets/icon.svg](assets/icon.svg).
