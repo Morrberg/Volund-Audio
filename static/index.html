@@ -439,7 +439,7 @@ function invalidateAlbum(){stopAlbumPreview();albumPlan=null;albumFingerprint=''
 function sideChanged(){invalidateAlbum();$('#albumTarget').disabled=!$('#albumCustom').checked||!$('#albumMatch').checked;saveState()}
 function sideDirty(){return !!sideTracks.length&&JSON.stringify(sideRequest())!==sideSaved}
 async function loadSides(files){
-  if(!files.length||saving)return;if(sideDirty()&&!confirm(t('Öppna nya låtar och lämna osparat sidprojekt?')))return;stopAlbumPreview();masterBusy(true);$('#sideStatus').textContent='Öppnar låtar…';
+  if(!files.length||saving)return;if(sideDirty()&&!confirm(t('Öppna nya låtar och lämna osparat sidprojekt?')))return;stopAlbumPreview();stop();stopMaster();stopMix();masterBusy(true);$('#sideStatus').textContent='Öppnar låtar…';
   try{
     const fd=new FormData();for(const f of files)fd.append('files',f);const r=await fetch('/api/upload',{method:'POST',body:fd});if(!r.ok)throw new Error(await r.text());const data=await r.json(),restored=data.project?.sideAssembly,durations={};
     for(const name of data.stems){const r=await fetch(`/api/stem/${data.sid}/${encodeURIComponent(name)}`);if(!r.ok)throw new Error(await r.text());const audio=await ctx.decodeAudioData(await r.arrayBuffer());durations[name]=audio.duration}
@@ -449,7 +449,7 @@ async function loadSides(files){
     renderSides();sideSaved=restored?JSON.stringify(sideRequest()):'';$('#sideSave').disabled=false;$('#sideProjectSave').disabled=false;$('#albumAnalyze').disabled=false;$('#albumSave').disabled=false;$('#sideStatus').textContent='Låtar öppnade.';
   }catch(e){$('#sideStatus').textContent='Kunde inte öppna: '+e.message}finally{masterBusy(false)}
 }
-function sideRequest(){return {title:$('#sideTitle').value,sample_rate:+$('#sideRate').value,bits:+$('#sideBits').value,tracks:sideTracks,level_matching:{enabled:!!$('#albumMatch').checked,target_lufs:$('#albumCustom').checked?+$('#albumTarget').value:null,ceiling_db:+$('#albumCeiling').value||-1}}}
+function sideRequest(){return {title:$('#sideTitle').value,sample_rate:+$('#sideRate').value,bits:+$('#sideBits').value,tracks:sideTracks,level_matching:{enabled:!!$('#albumMatch').checked,target_lufs:$('#albumCustom').checked?+$('#albumTarget').value:null,ceiling_db:Number.isFinite(+$('#albumCeiling').value)?+$('#albumCeiling').value:-1}}}
 function renderSides(){
   $('#sideTracks').replaceChildren();sideTracks.forEach((t,i)=>{
     const row=document.createElement('div'),name=document.createElement('span'),side=document.createElement('select'),gap=document.createElement('input');row.className='side-row';name.textContent=(i+1)+'. '+t.stem;
@@ -471,7 +471,7 @@ function renderAlbumReport(){
   if(albumPlan.warnings.includes('no_reference'))message+='Inga mätbara låtar valda för matchning. ';
   $('#sideStatus').textContent=message+'Värdena är beräknade; exporten mäts efter slutlig konvertering.';
 }
-async function analyzeAlbum(){if(!sideSession||saving)return;stopAlbumPreview();const request=sideRequest(),fingerprint=JSON.stringify(request);masterBusy(true);$('#sideStatus').textContent='Analyserar albumets låtar…';try{const r=await fetch(`/api/album/analyze/${sideSession}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!r.ok)throw Error(await r.text());const result=await r.json();if(fingerprint!==JSON.stringify(sideRequest()))return;albumPlan=result;albumFingerprint=fingerprint;renderAlbumReport()}catch(e){$('#sideStatus').textContent='Analysen misslyckades: '+e.message}finally{masterBusy(false)}}
+async function analyzeAlbum(){if(!sideSession||saving)return;stopAlbumPreview();stop();stopMaster();stopMix();const request=sideRequest(),fingerprint=JSON.stringify(request);masterBusy(true);$('#sideStatus').textContent='Analyserar albumets låtar…';try{const r=await fetch(`/api/album/analyze/${sideSession}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!r.ok)throw Error(await r.text());const result=await r.json();if(fingerprint!==JSON.stringify(sideRequest()))return;albumPlan=result;albumFingerprint=fingerprint;renderAlbumReport()}catch(e){$('#sideStatus').textContent='Analysen misslyckades: '+e.message}finally{masterBusy(false)}}
 async function playAlbum(index,wet){
   if(saving||!albumPlan||albumFingerprint!==JSON.stringify(sideRequest()))return;stopAlbumPreview();stop();stopMaster();stopMix();const generation=albumPlayGeneration,track=albumPlan.tracks[index];
   try{const r=await fetch(`/api/stem/${sideSession}/${encodeURIComponent(track.stem)}`);if(!r.ok)throw Error(await r.text());const buffer=await ctx.decodeAudioData(await r.arrayBuffer());if(generation!==albumPlayGeneration||saving)return;await ctx.resume();if(generation!==albumPlayGeneration)return;const source=ctx.createBufferSource(),level=ctx.createGain();source.buffer=buffer;level.gain.value=10**((wet?track.gain_db:0)/20);source.connect(level);level.connect(ctx.destination);albumSource=source;source.onended=()=>{if(albumSource===source)albumSource=null};source.start()}

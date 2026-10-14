@@ -73,6 +73,7 @@ pub async fn export(State(root):State<PathBuf>,Path(sid):Path<String>,Json(r):Js
         r.tracks[1].match_level=false;let p=calculate(&r,m.clone()).unwrap();assert!(!p.tracks[1].matched);assert!((p.tracks[1].gain_db+p.common_attenuation_db).abs()<1e-6);
         r.tracks[1].match_level=true;r.tracks[1].offset_db=-3.;let p=calculate(&r,m).unwrap();assert!((p.tracks[0].expected_lufs.unwrap()-p.tracks[1].expected_lufs.unwrap()-3.).abs()<0.01);
         let p=calculate(&r,vec![audio::measure(&sine(0.),44100).unwrap(),audio::measure(&sine(0.1),44100).unwrap()]).unwrap();assert!(!p.tracks[0].matched);assert!(p.tracks[0].expected_lufs.is_none());
+        r.tracks[0].match_level=false;r.tracks[1].match_level=false;let p=calculate(&r,vec![audio::measure(&sine(0.4),44100).unwrap(),audio::measure(&sine(0.1),44100).unwrap()]).unwrap();assert!(p.effective_lufs.is_none());assert!(p.tracks.iter().all(|t|!t.matched));
         r.level_matching.as_mut().unwrap().ceiling_db=f64::NAN;assert!(calculate(&r,vec![]).is_err());
     }
 }
