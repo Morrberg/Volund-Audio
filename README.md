@@ -1,4 +1,4 @@
-# Völund Audio 0.7
+# Völund Audio 0.8
 
 **Smid fram ditt sound.**
 
@@ -100,3 +100,18 @@ English: Open **Mix · cut before mastering**, select a region and choose **Cut 
 ## English
 
 **Völund Audio — Forge your sound.** A local stem editor, stereo mix editor and mastering tool, named after the legendary master smith Völund. Previously called Vocal Cleaner. Run `volund-audio.exe` on Windows. Existing `.vcleaner` projects remain compatible.
+
+
+## 0.8 — nivåmatchning över hela albumet
+
+I **Album · nivåmatchning och sida A/B**, öppna färdiga stereolåtar från samma profil: exempelvis alla CD-versioner eller alla vinylversioner. Blanda inte flera leveransversioner av samma låt till ett album. **Analysera albumnivåer** mäter integrerad LUFS och true peak för varje låt vid vald samplingsfrekvens. Det automatiska målet är medianen av de matchade, mätbara låtarna. Eget LUFS-mål kan väljas.
+
+Varje låt får en konstant nivåändring. Ingen ny EQ, kompressor eller limiter tillkommer och låtarnas interna dynamik bevaras. Avmarkera **Matcha** för exempelvis ett avsiktligt lugnare intro; dess normaliseringsgain blir då 0 dB. En egen justering −12 till +12 dB kan läggas efter matchningen. Tysta/mycket korta låtar utan mätbar LUFS normaliseras inte.
+
+Om toppgränsen eller gränsen +12 dB total nivåhöjning kräver det, sänks **alla låtar lika mycket**, även undantagna låtar. Detta bevarar de avsedda nivåskillnaderna och undviker att en transientrik låt ensam blir för svag. Resultattabellen visar den uppnåeliga gemensamma nivån, per-låt-gain och beräknade LUFS-värden. Förhandslyssning Före/Efter finns per låt; lyssna särskilt på övergångarna eftersom LUFS inte garanterar identisk subjektiv ljudstyrka eller klangbalans.
+
+**Spara nivåmatchade låtar som ZIP** ger en numrerad WAV per låt i albumordning och en JSON-rapport med faktiskt uppmätta exportvärden. Stödda originalmetadata bevaras. Samma matchning används vid sida A/B-export; eventuell extra toppmarginal vid skarvar tas gemensamt över båda sidorna. Sidrapporten redovisar även denna justering. Export sker i valt PCM-format med slutlig dither.
+
+**Spara sidprojekt** bevarar originalljud, mål, toppgräns, ordning, sidor, undantag och egna nivåjusteringar. Äldre sidprojekt öppnas med automatisk nivåmatchning avstängd. Originalfilerna ändras inte.
+
+English: Album loudness matching adjusts complete songs using constant per-track gain and an automatic median or custom LUFS target. Exclude intentional quiet tracks or apply a manual offset. Peak/gain constraints lower the entire album equally. Export numbered individual WAVs or sides A/B with measurement reports; save the side project to retain original audio and settings. This matches loudness, not EQ or tonal character.

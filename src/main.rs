@@ -3,6 +3,7 @@
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
 mod mastering;
+mod album;
 #[cfg(target_os="windows")]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(target_os="windows")]
@@ -206,6 +207,8 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/master/single/:sid", post(mastering::single))
         .route("/api/master/premaster/:sid", post(mastering::premaster))
         .route("/api/master/sides/:sid", post(mastering::sides))
+        .route("/api/album/analyze/:sid", post(album::analyze))
+        .route("/api/album/export/:sid", post(album::export))
         .layer(DefaultBodyLimit::max(2 << 30))
         .with_state(dir);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

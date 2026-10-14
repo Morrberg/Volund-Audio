@@ -3,10 +3,10 @@ const {chromium}=require('../target/ui-tools/node_modules/playwright-core');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 function chunk(id,data){const h=Buffer.alloc(8);h.write(id);h.writeUInt32LE(data.length,4);return Buffer.concat([h,data,data.length%2?Buffer.alloc(1):Buffer.alloc(0)])}
-function wav(freq){
+function wav(freq,amplitude=12000){
  const sr=44100,frames=sr*8,fmt=Buffer.alloc(16),data=Buffer.alloc(frames*4);
  fmt.writeUInt16LE(1,0);fmt.writeUInt16LE(2,2);fmt.writeUInt32LE(sr,4);fmt.writeUInt32LE(sr*4,8);fmt.writeUInt16LE(4,12);fmt.writeUInt16LE(16,14);
- for(let i=0;i<frames;i++){const v=Math.round(Math.sin(i*2*Math.PI*freq/sr)*Math.sin(i/sr*3)**2*12000);data.writeInt16LE(v,i*4);data.writeInt16LE(v,i*4+2)}
+ for(let i=0;i<frames;i++){const v=Math.round(Math.sin(i*2*Math.PI*freq/sr)*Math.sin(i/sr*3)**2*amplitude);data.writeInt16LE(v,i*4);data.writeInt16LE(v,i*4+2)}
  const body=Buffer.concat([Buffer.from('WAVE'),chunk('fmt ',fmt),chunk('data',data),chunk('LIST',Buffer.concat([Buffer.from('INFO'),chunk('INAM',Buffer.from('Original title\0'))]))]);
  const h=Buffer.alloc(8);h.write('RIFF');h.writeUInt32LE(body.length,4);return Buffer.concat([h,body]);
 }
@@ -166,6 +166,29 @@ function wav(freq){
   await page.locator('#f').setInputFiles(paths[0]);await page.waitForFunction(()=>names.length===1&&!saving);await page.evaluate(()=>refreshMix());
   await page.getByLabel('Start (s)',{exact:true}).fill('2');await page.getByLabel('Slut (s)',{exact:true}).fill('7');
   await page.getByRole('button',{name:'Behåll bara markering',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),5);
+  // Album leveling: three complete songs, with an intentional quiet intro.
+  const albumPaths=['01 Loud.wav','02 Quiet.wav','03 Intro.wav'].map((name,i)=>{const file=path.join(temp,name);fs.writeFileSync(file,wav(250,[12000,3000,1000][i]));return file});
+  await page.locator('#sidePanel').evaluate(el=>el.open=true);await page.locator('#sideFiles').setInputFiles(albumPaths);
+  await page.waitForFunction(()=>sideTracks.length===3&&!saving);assert.equal(await page.locator('#albumMatch').isChecked(),true);
+  await page.getByLabel('Matcha 03 Intro.wav',{exact:true}).uncheck();await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).fill('-1.5');await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).press('Tab');
+  await page.getByLabel('Sida för 02 Quiet.wav',{exact:true}).selectOption('B');
+  await page.locator('#albumCustom').check();await page.locator('#albumTarget').fill('-6');await page.locator('#albumTarget').press('Tab');
+  await page.locator('#albumAnalyze').click();await page.waitForFunction(()=>!!albumPlan&&!saving);
+  const plan=await page.evaluate(()=>albumPlan);assert.ok(plan.common_attenuation_db>0);assert.equal(plan.tracks[2].matched,false);assert.ok(Math.abs(plan.tracks[0].expected_lufs-plan.tracks[1].expected_lufs-1.5)<.1);
+  await page.locator('#albumReport button').nth(1).click();await page.waitForFunction(()=>!!albumSource);await page.evaluate(()=>stopAlbumPreview());
+  const albumResult=await page.evaluate(async()=>{
+    const parse=raw=>{const v=new DataView(raw.buffer);let offset=0,out={};while(v.getUint32(offset,true)===0x04034b50){const size=v.getUint32(offset+18,true),n=v.getUint16(offset+26,true),extra=v.getUint16(offset+28,true),name=new TextDecoder().decode(raw.slice(offset+30,offset+30+n)),start=offset+30+n+extra;out[name]=raw.slice(start,start+size);offset=start+size}return out};
+    const request=sideRequest();request.bits=16;const r=await fetch(`/api/album/export/${sideSession}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!r.ok)throw Error(await r.text());const entries=parse(new Uint8Array(await r.arrayBuffer())),report=JSON.parse(new TextDecoder().decode(entries['Album-report.json']));
+    const first=entries[report.outputs[0].file],sound=await ctx.decodeAudioData(first.slice().buffer),v=new DataView(first.buffer);let bits;for(let at=12;at+8<first.length;){const id=new TextDecoder().decode(first.slice(at,at+4)),size=v.getUint32(at+4,true);if(id==='fmt ')bits=v.getUint16(at+22,true);at+=8+size+(size%2)}
+    const side=await fetch(`/api/master/sides/${sideSession}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});if(!side.ok)throw Error(await side.text());const sideEntries=parse(new Uint8Array(await side.arrayBuffer())),sideReport=JSON.parse(new TextDecoder().decode(sideEntries['Side-report.json']));
+    const fd=new FormData();fd.append('files',new Blob([first]),'album.wav');const uploaded=await(await fetch('/api/upload',{method:'POST',body:fd})).json(),metadata=await(await fetch(`/api/metadata/${uploaded.sid}/album.wav`)).json();
+    return {report,duration:sound.duration,bits,metadata,sideReport};
+  });assert.equal(albumResult.bits,16);assert.equal(albumResult.duration,8);assert.equal(albumResult.report.outputs.length,3);assert.ok(Math.abs(albumResult.report.outputs[0].metrics.lufs-albumResult.report.outputs[1].metrics.lufs-1.5)<.15);assert.ok(albumResult.report.outputs.every(t=>t.metrics.true_peak_db<=-1));assert.equal(albumResult.metadata.fields.find(f=>f.key==='TrackTitle').value,'Original title');assert.equal(albumResult.sideReport.sides.length,2);
+  const albumProjectBytes=await page.evaluate(async()=>{const r=await fetch(`/api/project/${sideSession}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:3,tracks:{},sideAssembly:sideRequest()})});return Array.from(new Uint8Array(await r.arrayBuffer()))});
+  const albumProjectFile=path.join(temp,'album.vcleaner');fs.writeFileSync(albumProjectFile,Buffer.from(albumProjectBytes));const previousAlbum=await page.evaluate(()=>sideSession);await page.locator('#sideFiles').setInputFiles(albumProjectFile);await page.waitForFunction(old=>sideSession!==old&&!saving,previousAlbum);
+  assert.equal(await page.getByLabel('Matcha 03 Intro.wav',{exact:true}).isChecked(),false);assert.equal(await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).inputValue(),'-1.5');assert.equal(await page.locator('#albumTarget').inputValue(),'-6');assert.equal(await page.evaluate(()=>sideDirty()),false);
+  await page.locator('#albumAnalyze').click();await page.waitForFunction(()=>!!albumPlan&&!saving);await page.screenshot({path:'target/ui-album-swedish.png',fullPage:true});
+  await page.locator('#language').selectOption('en');await page.getByRole('button',{name:'Analyze album levels',exact:true}).waitFor();await page.screenshot({path:'target/ui-album-english.png',fullPage:true});
   await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
