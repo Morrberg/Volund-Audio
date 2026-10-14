@@ -1,4 +1,4 @@
-//! Vocal Cleaner: eget Windows-fönster, lokal ljudbehandling.
+//! Völund Audio: eget Windows-fönster, lokal ljudbehandling.
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
@@ -210,7 +210,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .with_state(dir);
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", l.local_addr().unwrap());
-    println!("Vocal Cleaner kör på {url}  (Ctrl+C för att avsluta)");
+    println!("Völund Audio kör på {url}  (Ctrl+C för att avsluta)");
     ready.send(url).expect("kan inte starta gränssnittet");
     axum::serve(l, app).await.unwrap();
 }
@@ -255,7 +255,7 @@ fn main() {
     {
         use tao::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().with_title("Vocal Cleaner")
+        let window = WindowBuilder::new().with_title("Völund Audio")
             .with_inner_size(tao::dpi::LogicalSize::new(1320.0, 860.0))
             .with_window_icon(tao::window::Icon::from_rgba(include_bytes!("../assets/icon.rgba").to_vec(), 64, 64).ok())
             .build(&event_loop).expect("kan inte skapa programfönster");
@@ -311,15 +311,15 @@ async fn save_project(State(root): State<PathBuf>, Path(sid): Path<String>, Json
     #[cfg(target_os = "windows")]
     {
         let path = tokio::task::spawn_blocking(|| rfd::FileDialog::new()
-            .set_title(ui_text("Spara Vocal Cleaner-projekt", "Save Vocal Cleaner project")).add_filter("Vocal Cleaner", &["vcleaner"])
-            .set_file_name("Vocal-Cleaner.vcleaner").save_file()).await.map_err(bad)?;
+            .set_title(ui_text("Spara Völund Audio-projekt", "Save Völund Audio project")).add_filter("Völund Audio", &["vcleaner"])
+            .set_file_name("Volund-Audio.vcleaner").save_file()).await.map_err(bad)?;
         let Some(path) = path else { return Ok(Json(json!({"cancelled": true})).into_response()); };
         fs::write(path, bytes).map_err(bad)?;
         Ok(Json(json!({"cancelled": false})).into_response())
     }
     #[cfg(not(target_os = "windows"))]
     { Ok(([(header::CONTENT_TYPE, "application/zip"),
-        (header::CONTENT_DISPOSITION, "attachment; filename=Vocal-Cleaner.vcleaner")], bytes).into_response()) }
+        (header::CONTENT_DISPOSITION, "attachment; filename=Volund-Audio.vcleaner")], bytes).into_response()) }
 }
 
 #[cfg(test)]

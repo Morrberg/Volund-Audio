@@ -1,4 +1,4 @@
-name: Vocal Cleaner - Windows Build
+name: Völund Audio - Windows Build
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Vocal-Cleaner-UI-Previews
+          name: Volund-Audio-UI-Previews
           path: target/ui-*.png
           if-no-files-found: ignore
           retention-days: 30
@@ -59,7 +59,7 @@ jobs:
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
-          name: Vocal-Cleaner-Windows
-          path: target/release/vocal-cleaner.exe
+          name: Volund-Audio-Windows
+          path: target/release/volund-audio.exe
           if-no-files-found: error
           retention-days: 30
