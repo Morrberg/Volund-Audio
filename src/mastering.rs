@@ -48,7 +48,30 @@ pub struct Request {
     #[serde(default)] pub album: String,
     pub tracks: Vec<MixTrack>,
     pub profiles: Vec<Profile>,
+    #[serde(default)] pub mix_edits: Vec<MixEdit>,
 }
+/// Times refer to the current mix after all preceding operations.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct MixEdit { pub kind: String, pub start: f64, pub end: f64 }
+fn edit_mix(mut audio: Vec<f32>, sr: u32, edits: &[MixEdit]) -> Result<Vec<f32>, String> {
+    if edits.len()>1000 {return Err("Too many mix edits".into())}
+    for e in edits {
+        let frames=audio.len()/2;
+        if !e.start.is_finite() || !e.end.is_finite() || e.start<0. || e.end<=e.start || e.end>frames as f64/sr as f64+1.0/sr as f64 || !["cut","keep"].contains(&e.kind.as_str()) {return Err("Invalid mix selection".into())}
+        let a=((e.start*sr as f64).round() as usize).min(frames);
+        let b=((e.end*sr as f64).round() as usize).min(frames);
+        if b<=a || (e.kind=="cut" && b-a==frames) {return Err("The mix must contain audio".into())}
+        let joins=if e.kind=="cut" {audio.drain(a*2..b*2);vec![a]} else {audio=audio[a*2..b*2].to_vec();vec![0,audio.len()/2]};
+        // Short fades preserve exact timing; no overlapping or shortening at joins.
+        let count=audio.len()/2;let edge=(sr as usize/200).min(count/2);
+        for join in joins {for i in 0..edge {
+            let gain=i as f32/edge as f32;
+            for c in 0..2 {if join+i<count {audio[(join+i)*2+c]*=gain}if join>i {audio[(join-1-i)*2+c]*=gain}}
+        }}
+    }
+    Ok(audio)
+}
+fn request_mix(dir:&FsPath,r:&Request,sr:u32)->Result<Vec<f32>,String>{edit_mix(mix(dir,&r.tracks,sr)?,sr,&r.mix_edits)}
 #[derive(Clone, Serialize)]
 pub struct Metrics {
     pub lufs: Option<f64>,
@@ -304,7 +327,7 @@ fn render_batch(dir:&FsPath,r:&Request)->Result<Vec<u8>,String> {
     // Cache only one sample rate at a time to keep batch memory bounded.
     let mut rate=0;let mut base=Vec::new();
     for p in &r.profiles {
-        if rate!=p.sample_rate {base=mix(dir,&r.tracks,p.sample_rate)?;rate=p.sample_rate}
+        if rate!=p.sample_rate {base=request_mix(dir,r,p.sample_rate)?;rate=p.sample_rate}
         let (y,report)=process(&base,p)?;
         zip_entry(&mut zip,&format!("{} - mastered - {}.wav",safe_name(&r.title),p.id),&tagged(&y,p,r)?)?;reports.push(report);
     }
@@ -313,18 +336,18 @@ fn render_batch(dir:&FsPath,r:&Request)->Result<Vec<u8>,String> {
 }
 pub async fn analyze(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Json<Value>> {
     let dir=sess(&root,&sid)?;
-    let result=tokio::task::spawn_blocking(move||->Result<Value,String>{validate(&r)?;let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let (_,report)=process(&base,p)?;Ok(json!(report))}).await.map_err(bad)?.map_err(bad)?;
+    let result=tokio::task::spawn_blocking(move||->Result<Value,String>{validate(&r)?;let p=&r.profiles[0];let base=request_mix(&dir,&r,p.sample_rate)?;let (_,report)=process(&base,p)?;Ok(json!(report))}).await.map_err(bad)?.map_err(bad)?;
     Ok(Json(result))
 }
 pub async fn preview(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<([(HeaderName,String);1],Vec<u8>)> {
     let dir=sess(&root,&sid)?;
-    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{validate(&r)?;let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let(y,_)=process(&base,p)?;wav(&y,p.sample_rate,p.bits,true)}).await.map_err(bad)?.map_err(bad)?;
+    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{validate(&r)?;let p=&r.profiles[0];let base=request_mix(&dir,&r,p.sample_rate)?;let(y,_)=process(&base,p)?;wav(&y,p.sample_rate,p.bits,true)}).await.map_err(bad)?.map_err(bad)?;
     Ok(([(header::CONTENT_TYPE,"audio/wav".into())],bytes))
 }
 async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
     #[cfg(target_os="windows")]
     if native && std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref()!=Ok("1") {
-        let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title("Spara masteringexport").add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
+        let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title(crate::ui_text("Spara ljudexport", "Save audio export")).add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
         let Some(path)=path else{return Ok(Json(json!({"cancelled":true})).into_response())};
         std::fs::write(&path,bytes).map_err(bad)?;return Ok(Json(json!({"cancelled":false,"name":path.file_name().unwrap_or_default().to_string_lossy()})).into_response());
     }
@@ -342,8 +365,14 @@ async fn batch_impl(root:std::path::PathBuf,sid:String,r:Request,native:bool)->R
 pub async fn single(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Response> {
     let dir=sess(&root,&sid)?;validate(&r).map_err(bad)?;
     let suggested=format!("{} - mastered - {}.wav",safe_name(&r.title),r.profiles[0].id);
-    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{let p=&r.profiles[0];let base=mix(&dir,&r.tracks,p.sample_rate)?;let (y,_)=process(&base,p)?;tagged(&y,p,&r)}).await.map_err(bad)?.map_err(bad)?;
+    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{let p=&r.profiles[0];let base=request_mix(&dir,&r,p.sample_rate)?;let (y,_)=process(&base,p)?;tagged(&y,p,&r)}).await.map_err(bad)?.map_err(bad)?;
     save_or_download(bytes,suggested,"wav",true).await
+}
+
+pub async fn premaster(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<Request>)->R<Response> {
+    let dir=sess(&root,&sid)?;validate(&r).map_err(bad)?;let title=safe_name(&r.title);
+    let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{let p=&r.profiles[0];let y=request_mix(&dir,&r,p.sample_rate)?;if y.iter().any(|v|v.abs()>1.) {return Err("Mix exceeds 0 dBFS. Lower stem levels before PCM export.".into())}tagged(&y,&Profile{bits:24,..p.clone()},&r)}).await.map_err(bad)?.map_err(bad)?;
+    save_or_download(bytes,format!("{title} - edited mix.wav"),"wav",true).await
 }
 
 #[derive(Deserialize)]
@@ -387,7 +416,7 @@ mod tests {
     #[test]fn limiter_handles_impulses_and_high_frequency(){let mut y=sine(44100,3.,18000.,1.4);y[1000]=5.;y[1001]=-4.;let mut p=profile("Spotify");p.target_lufs=None;p.compression=0.;let(_,r)=process(&y,&p).unwrap();assert!(r.output.true_peak_db.unwrap()<=-1.);assert!(r.limiter_reduction_db>0.);}
     #[test]fn resampler_keeps_duration_and_rejects_aliases(){let source=sine(48000,1.,1000.,0.5);let out=stereo_resample(&source,48000,2,44100).unwrap();assert_eq!(out.len(),88200);assert!((measure(&source,48000).unwrap().lufs.unwrap()-measure(&out,44100).unwrap().lufs.unwrap()).abs()<0.1);let high=stereo_resample(&sine(96000,1.,30000.,0.5),96000,2,44100).unwrap();let rms=(high.iter().skip(1000).take(80000).map(|v|(*v as f64).powi(2)).sum::<f64>()/80000.).sqrt();assert!(rms<0.01);}
     #[test]fn mono_bass_reduces_antiphase_and_compressor_preserves_stereo(){let mut y=sine(44100,2.,40.,0.5);for f in y.chunks_exact_mut(2){f[1]=-f[0]}let before=measure(&y,44100).unwrap();let mut p=profile("Vinyl");p.mono_bass_hz=150.;tone(&mut y,&p);let power=y.iter().map(|v|(*v as f64).powi(2)).sum::<f64>();let original=sine(44100,2.,40.,0.5).iter().map(|v|(*v as f64).powi(2)).sum::<f64>();assert!(power/original<0.1);assert!(before.bass_side_ratio>0.9);let mut stereo=sine(44100,2.,1000.,0.8);compress(&mut stereo,&p);assert!(stereo.chunks_exact(2).all(|f|f[0]==f[1]));}
-    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01,..Default::default()}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
+    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{mix_edits:vec![],title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01,..Default::default()}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
     #[test]
     fn panning_moves_both_channels_and_preserves_outside_samples() {
         let original:Vec<f32>=(0..1000).flat_map(|_|[0.2,0.3]).collect();
@@ -410,7 +439,7 @@ mod tests {
         let source:Vec<f32>=(0..44100).flat_map(|_|[0.1,0.2]).collect();for name in ["Synth.wav","Vocals.wav"] {std::fs::write(dir.join(name),wav(&source,44100,24,true).unwrap()).unwrap();}
         let track=|stem:&str,edits|MixTrack{stem:stem.into(),gain_db:0.,mute:false,solo:false,edits};let edit=Edit{kind:"pan".into(),start:0.2,end:0.8,fade:0.01,pan_from:-1.,pan_to:-1.,pan_cycles:0};
         let y=mix(&dir,&[track("Synth.wav",vec![edit.clone()]),track("Vocals.wav",vec![])],44100).unwrap();assert!((y[44100]-0.4).abs()<1e-6);assert!((y[44101]-0.2).abs()<1e-6);
-        let r=Request{title:"Pan".into(),artist:"".into(),album:"".into(),tracks:vec![track("Synth.wav",vec![edit])],profiles:vec![profile("CD")]};let archive=render_batch(&dir,&r).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(archive)).unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut z.by_name("Pan - mastered - CD.wav").unwrap(),&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert_eq!(samples[44101],0);assert_ne!(samples[44100],0);std::fs::remove_dir_all(dir).unwrap();
+        let r=Request{mix_edits:vec![],title:"Pan".into(),artist:"".into(),album:"".into(),tracks:vec![track("Synth.wav",vec![edit])],profiles:vec![profile("CD")]};let archive=render_batch(&dir,&r).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(archive)).unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut z.by_name("Pan - mastered - CD.wav").unwrap(),&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert_eq!(samples[44101],0);assert_ne!(samples[44100],0);std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn mixing_honors_gain_mute_solo_and_longest_duration() {
@@ -434,4 +463,15 @@ mod tests {
         let bytes=side_zip(&dir,&r).unwrap();let mut archive=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut archive.by_name("Side-report.json").unwrap(),&mut bytes).unwrap();let report:Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(report["sides"][0]["tracks"][0]["file"],"Two.wav");assert_eq!(report["sides"][0]["tracks"][1]["start_seconds"],1.5);assert_eq!(report["sides"][1]["tracks"][0]["start_seconds"],0.0);assert_eq!(report["sides"][0]["metrics"]["duration"],2.5);std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]fn invalid_settings_rejected(){let mut p=profile("CD");p.bits=24;assert!(p.validate().is_err());p=profile("Vinyl");p.ceiling_db=f64::NAN;assert!(p.validate().is_err());assert_eq!(safe_name("../bad/name"),"_bad_name");}
+}
+
+#[cfg(test)] mod mix_edit_tests {
+    use super::*;
+    #[test] fn cut_keep_and_order_preserve_stereo_and_exact_duration(){
+        let audio:Vec<f32>=(0..1000).flat_map(|i|[i as f32,-(i as f32)]).collect();
+        let cut=MixEdit{kind:"cut".into(),start:0.2,end:0.4};
+        let y=edit_mix(audio.clone(),1000,&[cut]).unwrap();assert_eq!(y.len(),1600);assert_eq!(y[600],500.);assert_eq!(y[601],-500.);assert_eq!(y[400],0.);
+        let y=edit_mix(y,1000,&[MixEdit{kind:"keep".into(),start:0.1,end:0.6}]).unwrap();assert_eq!(y.len(),1000);assert_eq!(y[400],500.);assert_eq!(y[0],0.);assert_eq!(*y.last().unwrap(),0.);
+        for (a,b) in [(0.,1.),(0.9,1.1),(f64::NAN,0.5)] {assert!(edit_mix(audio.clone(),1000,&[MixEdit{kind:"cut".into(),start:a,end:b}]).is_err())}
+    }
 }
