@@ -96,7 +96,7 @@ pub struct Report {
     pub warnings: Vec<String>,
 }
 fn db(v: f64) -> Option<f64> { if v > 1e-15 { Some(20.*v.log10()) } else { None } }
-fn gain(db: f64) -> f64 { 10f64.powf(db/20.) }
+pub(crate) fn gain(db: f64) -> f64 { 10f64.powf(db/20.) }
 fn finite(v: Result<f64, ebur128::Error>) -> Option<f64> { v.ok().filter(|x| x.is_finite()) }
 
 pub fn measure(y: &[f32], sr: u32) -> Result<Metrics, String> {
@@ -264,12 +264,12 @@ fn limit(y:&mut [f32],sr:u32,ceiling:f64)->f64 {
     reduction
 }
 /// Deterministic TPDF dither at the final integer conversion, never added to exact digital silence.
-fn quantize(y:&mut [f32],bits:u16) {
+pub(crate) fn quantize(y:&mut [f32],bits:u16) {
     let scale=((1u32<<(bits-1))-1) as f64;let mut state=0x8ba63e21u32;
     let mut rand=||{state^=state<<13;state^=state>>17;state^=state<<5;state as f64/u32::MAX as f64};
     for s in y {if *s==0. {continue}let noise=rand()-rand();*s=(((*s as f64*scale+noise).round()).clamp(-scale-1.,scale)/scale) as f32}
 }
-fn wav(y:&[f32],sr:u32,bits:u16,float:bool)->Result<Vec<u8>,String> {
+pub(crate) fn wav(y:&[f32],sr:u32,bits:u16,float:bool)->Result<Vec<u8>,String> {
     let mut buffer=Cursor::new(Vec::new());
     {let mut writer=hound::WavWriter::new(&mut buffer,hound::WavSpec{channels:2,sample_rate:sr,bits_per_sample:if float{32}else{bits},sample_format:if float{hound::SampleFormat::Float}else{hound::SampleFormat::Int}}).map_err(|e|e.to_string())?;
     let scale=((1u32<<(bits-1))-1) as f64;for s in y {if float {writer.write_sample(*s).map_err(|e|e.to_string())?}else{writer.write_sample((*s as f64*scale).round().clamp(-scale-1.,scale) as i32).map_err(|e|e.to_string())?}}writer.finalize().map_err(|e|e.to_string())?;}
@@ -309,7 +309,7 @@ fn validate(r:&Request)->Result<(),String>{
     let mut ids=HashSet::new();for p in &r.profiles {p.validate()?;if !ids.insert(&p.id){return Err("Dubblerad masteringprofil".into())}}
     Ok(())
 }
-fn safe_name(s:&str)->String {
+pub(crate) fn safe_name(s:&str)->String {
     let s:String=s.chars().map(|c|if c.is_control()||"/\\:*?\"<>|".contains(c){'_'}else{c}).collect();
     let s=s.trim().trim_matches('.').to_string();if s.is_empty(){"Låt".into()}else{s}
 }
@@ -318,7 +318,7 @@ fn tagged(y:&[f32],p:&Profile,r:&Request)->Result<Vec<u8>,String> {
     let changes=crate::metadata::Changes{clear:true,fields:vec![crate::metadata::Field{key:"TrackTitle".into(),value:r.title.clone()},crate::metadata::Field{key:"TrackArtist".into(),value:r.artist.clone()},crate::metadata::Field{key:"AlbumTitle".into(),value:r.album.clone()}]};
     crate::metadata::apply(FsPath::new(""),bytes,Some(&changes))
 }
-fn zip_entry(zip:&mut zip::ZipWriter<Cursor<Vec<u8>>>,name:&str,bytes:&[u8])->Result<(),String> {
+pub(crate) fn zip_entry(zip:&mut zip::ZipWriter<Cursor<Vec<u8>>>,name:&str,bytes:&[u8])->Result<(),String> {
     zip.start_file(name,zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored)).map_err(|e|e.to_string())?;
     zip.write_all(bytes).map_err(|e|e.to_string())
 }
@@ -344,7 +344,7 @@ pub async fn preview(State(root):State<std::path::PathBuf>,Path(sid):Path<String
     let bytes=tokio::task::spawn_blocking(move||->Result<Vec<u8>,String>{validate(&r)?;let p=&r.profiles[0];let base=request_mix(&dir,&r,p.sample_rate)?;let(y,_)=process(&base,p)?;wav(&y,p.sample_rate,p.bits,true)}).await.map_err(bad)?.map_err(bad)?;
     Ok(([(header::CONTENT_TYPE,"audio/wav".into())],bytes))
 }
-async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
+pub(crate) async fn save_or_download(bytes:Vec<u8>,suggested:String,extension:&'static str,native:bool)->R<Response> {
     #[cfg(target_os="windows")]
     if native && std::env::var("VOCAL_CLEANER_SERVER_ONLY").as_deref()!=Ok("1") {
         let file_name=suggested.clone();let path=tokio::task::spawn_blocking(move||rfd::FileDialog::new().set_title(crate::ui_text("Spara ljudexport", "Save audio export")).add_filter("Export",&[extension]).set_file_name(&file_name).save_file()).await.map_err(bad)?;
@@ -375,32 +375,48 @@ pub async fn premaster(State(root):State<std::path::PathBuf>,Path(sid):Path<Stri
     save_or_download(bytes,format!("{title} - edited mix.wav"),"wav",true).await
 }
 
-#[derive(Deserialize)]
-pub struct SideTrack {pub stem:String,pub side:String,pub gap:f64}
-#[derive(Deserialize)]
-pub struct SideRequest {pub title:String,pub sample_rate:u32,pub bits:u16,pub tracks:Vec<SideTrack>}
+fn default_match_level()->bool{true}
+#[derive(Clone,Deserialize,Serialize)]
+pub struct SideTrack {pub stem:String,pub side:String,pub gap:f64,
+    #[serde(default="default_match_level")] pub match_level:bool,
+    #[serde(default)] pub offset_db:f64}
+#[derive(Clone,Deserialize,Serialize)]
+pub struct SideRequest {pub title:String,pub sample_rate:u32,pub bits:u16,pub tracks:Vec<SideTrack>,
+    #[serde(default)] pub level_matching:Option<crate::album::Settings>}
+pub(crate) fn validate_sides(r:&SideRequest)->Result<(),String>{
+    if r.title.trim().is_empty()||r.title.len()>200||![44100,48000,88200,96000].contains(&r.sample_rate)||![16,24].contains(&r.bits)||r.tracks.is_empty()||r.tracks.len()>100 {return Err("Ogiltiga albuminställningar".into())}
+    let mut seen=HashSet::new();for t in &r.tracks {if !["A","B"].contains(&t.side.as_str())||!t.gap.is_finite()||!(0. ..=30.).contains(&t.gap)||!t.offset_db.is_finite()||!(-12. ..=12.).contains(&t.offset_db)||fname(&t.stem)!=t.stem||!crate::is_audio(&t.stem)||!seen.insert(&t.stem){return Err("Ogiltig låt, sida, nivå eller mellanrum".into())}}
+    Ok(())
+}
+fn assemble_side(dir:&FsPath,r:&SideRequest,side:&str,plan:&crate::album::Plan)->Result<(Vec<f32>,Vec<Value>,String),String>{
+    let mut y=Vec::new();let mut songs=Vec::new();let mut cue=String::new();
+    for (i,t) in r.tracks.iter().enumerate().filter(|(_,t)|t.side==side) {
+        if !y.is_empty(){y.resize(y.len()+(t.gap*r.sample_rate as f64).round() as usize*2,0.)}
+        let start=y.len() as f64/2./r.sample_rate as f64;let (audio,rate,ch)=decode(&dir.join(&t.stem))?;let mut audio=stereo_resample(&audio,rate,ch,r.sample_rate)?;
+        if y.len()+audio.len()>r.sample_rate as usize*60*60*2{return Err("En sida får vara högst 60 minuter".into())}
+        let g=gain(plan.tracks[i].gain_db) as f32;for sample in &mut audio{*sample*=g}
+        cue.push_str(&format!("{:02}:{:06.3}\t{}\n",(start/60.).floor() as u32,start%60.,t.stem));songs.push(json!({"file":t.stem,"start_seconds":start,"duration_seconds":audio.len() as f64/2./r.sample_rate as f64,"gain_db":plan.tracks[i].gain_db}));y.extend(audio);
+    }
+    Ok((y,songs,cue))
+}
 fn side_zip(dir:&FsPath,r:&SideRequest)->Result<Vec<u8>,String> {
-    if ![44100,48000,88200,96000].contains(&r.sample_rate)||![16,24].contains(&r.bits)||r.tracks.is_empty()||r.tracks.len()>100 {return Err("Ogiltiga sidinställningar".into())}
-    let mut seen=HashSet::new();for t in &r.tracks {if !["A","B"].contains(&t.side.as_str())||!t.gap.is_finite()||!(0. ..=30.).contains(&t.gap)||fname(&t.stem)!=t.stem||!crate::is_audio(&t.stem)||!seen.insert(&t.stem){return Err("Ogiltig låt, sida eller mellanrum".into())}}
+    let plan=crate::album::plan(dir,r)?;
+    // Check both assembled sides first. Any extra join headroom is applied to BOTH sides.
+    let mut common=0f64;
+    for side in ["A","B"] {let (y,_,_)=assemble_side(dir,r,side,&plan)?;if !y.is_empty(){common=common.min(plan.ceiling_db-0.15-measure(&y,r.sample_rate)?.true_peak_db.unwrap_or(-200.))}}
     let mut z=zip::ZipWriter::new(Cursor::new(Vec::new()));let mut sides=Vec::new();
     for side in ["A","B"] {
-        let mut y=Vec::new();let mut cue=String::new();let mut songs=Vec::new();
-        for t in r.tracks.iter().filter(|t|t.side==side) {
-            if !y.is_empty(){y.resize(y.len()+(t.gap*r.sample_rate as f64).round() as usize*2,0.)}
-            let start=y.len() as f64/2./r.sample_rate as f64;let (audio,rate,ch)=decode(&dir.join(&t.stem))?;let audio=stereo_resample(&audio,rate,ch,r.sample_rate)?;
-            if y.len()+audio.len()>r.sample_rate as usize*60*60*2{return Err("En sida får vara högst 60 minuter".into())}
-            cue.push_str(&format!("{:02}:{:06.3}\t{}\n",(start/60.).floor() as u32,start%60.,t.stem));songs.push(json!({"file":t.stem,"start_seconds":start,"duration_seconds":audio.len() as f64/2./r.sample_rate as f64}));y.extend(audio);
-        }
-        if y.is_empty(){continue}
-        let before=measure(&y,r.sample_rate)?;let attenuation=(-1.05-before.true_peak_db.unwrap_or(-200.)).min(0.);
-        for s in &mut y {*s*=gain(attenuation) as f32}quantize(&mut y,r.bits);
+        let (mut y,songs,cue)=assemble_side(dir,r,side,&plan)?;if y.is_empty(){continue}
+        for sample in &mut y {*sample*=gain(common) as f32}quantize(&mut y,r.bits);let output=measure(&y,r.sample_rate)?;
+        if output.true_peak_db.is_some_and(|v|v>plan.ceiling_db){return Err("Albumets toppgräns överskreds".into())}
         zip_entry(&mut z,&format!("{} - Side {side}.wav",safe_name(&r.title)),&wav(&y,r.sample_rate,r.bits,false)?)?;
         zip_entry(&mut z,&format!("Side {side} - tracklist.txt"),cue.as_bytes())?;
-        sides.push(json!({"side":side,"tracks":songs,"metrics":measure(&y,r.sample_rate)?,"safety_attenuation_db":-attenuation}));
+        sides.push(json!({"side":side,"tracks":songs,"metrics":output,"safety_attenuation_db":-common}));
     }
-    zip_entry(&mut z,"Side-report.json",&serde_json::to_vec_pretty(&json!({"sides":sides,"sample_rate":r.sample_rate,"bits":r.bits})).map_err(|e|e.to_string())?)?;
+    zip_entry(&mut z,"Side-report.json",&serde_json::to_vec_pretty(&json!({"sides":sides,"sample_rate":r.sample_rate,"bits":r.bits,"album_level_plan":plan,"request":r})).map_err(|e|e.to_string())?)?;
     z.finish().map(|z|z.into_inner()).map_err(|e|e.to_string())
 }
+
 pub async fn sides(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,Json(r):Json<SideRequest>)->R<Response> {
     let dir=sess(&root,&sid)?;let name=format!("{} - sides.zip",safe_name(&r.title));
     let bytes=tokio::task::spawn_blocking(move||side_zip(&dir,&r)).await.map_err(bad)?.map_err(bad)?;save_or_download(bytes,name,"zip",true).await
@@ -416,7 +432,7 @@ mod tests {
     #[test]fn limiter_handles_impulses_and_high_frequency(){let mut y=sine(44100,3.,18000.,1.4);y[1000]=5.;y[1001]=-4.;let mut p=profile("Spotify");p.target_lufs=None;p.compression=0.;let(_,r)=process(&y,&p).unwrap();assert!(r.output.true_peak_db.unwrap()<=-1.);assert!(r.limiter_reduction_db>0.);}
     #[test]fn resampler_keeps_duration_and_rejects_aliases(){let source=sine(48000,1.,1000.,0.5);let out=stereo_resample(&source,48000,2,44100).unwrap();assert_eq!(out.len(),88200);assert!((measure(&source,48000).unwrap().lufs.unwrap()-measure(&out,44100).unwrap().lufs.unwrap()).abs()<0.1);let high=stereo_resample(&sine(96000,1.,30000.,0.5),96000,2,44100).unwrap();let rms=(high.iter().skip(1000).take(80000).map(|v|(*v as f64).powi(2)).sum::<f64>()/80000.).sqrt();assert!(rms<0.01);}
     #[test]fn mono_bass_reduces_antiphase_and_compressor_preserves_stereo(){let mut y=sine(44100,2.,40.,0.5);for f in y.chunks_exact_mut(2){f[1]=-f[0]}let before=measure(&y,44100).unwrap();let mut p=profile("Vinyl");p.mono_bass_hz=150.;tone(&mut y,&p);let power=y.iter().map(|v|(*v as f64).powi(2)).sum::<f64>();let original=sine(44100,2.,40.,0.5).iter().map(|v|(*v as f64).powi(2)).sum::<f64>();assert!(power/original<0.1);assert!(before.bass_side_ratio>0.9);let mut stereo=sine(44100,2.,1000.,0.8);compress(&mut stereo,&p);assert!(stereo.chunks_exact(2).all(|f|f[0]==f[1]));}
-    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{mix_edits:vec![],title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01,..Default::default()}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
+    #[test]fn batch_and_sides_keep_names_edits_and_reports(){let dir=std::env::temp_dir().join(format!("master-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();let audio=sine(44100,2.,1000.,0.1);std::fs::write(dir.join("Vocals.wav"),wav(&audio,44100,24,true).unwrap()).unwrap();let request=Request{mix_edits:vec![],title:"Låt 1".into(),artist:"Chaoswrought".into(),album:"Album".into(),tracks:vec![MixTrack{stem:"Vocals.wav".into(),gain_db:0.,mute:false,solo:false,edits:vec![Edit{kind:"mute".into(),start:0.5,end:1.,fade:0.01,..Default::default()}]}],profiles:vec![profile("Spotify"),profile("CD")]};let zip=render_batch(&dir,&request).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(zip)).unwrap();assert!(z.by_name("Mastering-report.json").is_ok());let mut file=z.by_name("Låt 1 - mastered - CD.wav").unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut file,&mut bytes).unwrap();let mut reader=hound::WavReader::new(Cursor::new(bytes)).unwrap();let samples=reader.samples::<i16>().map(Result::unwrap).collect::<Vec<_>>();assert!(samples[44100..60000].iter().all(|s|*s==0));let sides=SideRequest{level_matching:None,title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{match_level:true,offset_db:0.,stem:"Vocals.wav".into(),side:"A".into(),gap:0.}]};let bytes=side_zip(&dir,&sides).unwrap();let mut z=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();assert!(z.by_name("Album - Side A.wav").is_ok());assert!(z.by_name("Side A - tracklist.txt").is_ok());std::fs::remove_dir_all(dir).unwrap();}
     #[test]
     fn panning_moves_both_channels_and_preserves_outside_samples() {
         let original:Vec<f32>=(0..1000).flat_map(|_|[0.2,0.3]).collect();
@@ -459,7 +475,7 @@ mod tests {
     fn side_order_gaps_and_both_sides_roundtrip() {
         let dir=std::env::temp_dir().join(format!("side-test-{}",std::process::id()));std::fs::create_dir_all(&dir).unwrap();
         for name in ["One.wav","Two.wav","Three.wav"]{std::fs::write(dir.join(name),wav(&sine(44100,1.,1000.,0.1),44100,24,true).unwrap()).unwrap();}
-        let r=SideRequest{title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{stem:"Two.wav".into(),side:"A".into(),gap:2.},SideTrack{stem:"One.wav".into(),side:"A".into(),gap:0.5},SideTrack{stem:"Three.wav".into(),side:"B".into(),gap:3.}]};
+        let r=SideRequest{level_matching:None,title:"Album".into(),sample_rate:44100,bits:16,tracks:vec![SideTrack{match_level:true,offset_db:0.,stem:"Two.wav".into(),side:"A".into(),gap:2.},SideTrack{match_level:true,offset_db:0.,stem:"One.wav".into(),side:"A".into(),gap:0.5},SideTrack{match_level:true,offset_db:0.,stem:"Three.wav".into(),side:"B".into(),gap:3.}]};
         let bytes=side_zip(&dir,&r).unwrap();let mut archive=zip::ZipArchive::new(Cursor::new(bytes)).unwrap();let mut bytes=Vec::new();std::io::Read::read_to_end(&mut archive.by_name("Side-report.json").unwrap(),&mut bytes).unwrap();let report:Value=serde_json::from_slice(&bytes).unwrap();assert_eq!(report["sides"][0]["tracks"][0]["file"],"Two.wav");assert_eq!(report["sides"][0]["tracks"][1]["start_seconds"],1.5);assert_eq!(report["sides"][1]["tracks"][0]["start_seconds"],0.0);assert_eq!(report["sides"][0]["metrics"]["duration"],2.5);std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]fn invalid_settings_rejected(){let mut p=profile("CD");p.bits=24;assert!(p.validate().is_err());p=profile("Vinyl");p.ceiling_db=f64::NAN;assert!(p.validate().is_err());assert_eq!(safe_name("../bad/name"),"_bad_name");}
