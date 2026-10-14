@@ -1,4 +1,4 @@
-# Vocal Cleaner 0.5
+# Vocal Cleaner 0.6
 
 Lokalt verktyg för att tysta oönskade vokala inslag i Suno-stems.
 
@@ -80,3 +80,14 @@ Panorering sparas som en redigering, med ångra/gör om och en lista där en ens
 Stereopan använder equal-power-crossfeed: båda originalkanalerna kan flyttas till samma sida utan att den ena kanalens innehåll kastas bort. Mono med panorering exporteras som stereo med equal-power-gain (center motsvarar originalets mono i båda högtalarna). Utan panorering behåller vanlig stemexport originalets kanalantal. Summering till en sida kan höja topparna; sänk spårnivån vid behov och kontrollera masteringens mätvärden. Ljud som redan är i motfas kan släcka ut varandra vid summering.
 
 Samma beräkningar används i vanlig förhandslyssning, WAV-stemexport, masteringens mix och samtliga masterprofiler. Vinylprofilens inställning för smal djupbas kan minska panoreringens bredd i de lägsta frekvenserna.
+
+
+## 0.6 — klipp i mixen, språk och Om
+
+Öppna **Mix · klipp före mastering** efter att du justerat stems. En ensam WAV kan öppnas via samma import. Dra i mixens vågform eller ange start/slut i sekunder. **Klipp bort markering** tar bort tiden och sammanfogar resten; **Behåll bara markering** trimmar bort allt utanför. **Ångra klipp / Gör om klipp** är en egen historik. Klippen använder den aktuella mixens tidspositioner och 5 ms toningar vid skarvar/trimkanter utan att ändra den beräknade längden ytterligare.
+
+Stems behåller sin längd, synk och redigeringar. Mixens klipp används före alla masteringprofiler, inklusive Före/Efter och analys. **Spara redigerad mix** exporterar en 24-bitars stereo-WAV före mastering vid den valda profilens samplingsfrekvens. Sänk spårnivåerna om PCM-exporten rapporterar toppar över 0 dBFS. Spara projekt för att behålla klipp, ångra/gör om och originalfiler. Äldre projekt öppnas utan mixklipp.
+
+Välj **Svenska / English** i överkanten; språkvalet sparas på datorn. Filnamn och metadata ändras inte när du byter språk. **Om / About** visar version, syfte och licens.
+
+English: Open **Mix · cut before mastering**, select a region and choose **Cut selection** or **Keep selection only**. Undo/redo affects only mix cuts. Original stems remain synchronized. Cuts are saved in the project and applied before every mastering profile. Export the edited premaster as a 24-bit stereo WAV or export the separate mastered versions.

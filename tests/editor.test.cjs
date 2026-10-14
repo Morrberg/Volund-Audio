@@ -68,5 +68,14 @@ await run(`sideTracks=[{stem:'Song.wav',side:'A',gap:2}];sideDurations={'Song.wa
 // Rebuild detaches the active editor. Real querySelector cannot find its controls until reattached.
 await run(`setVocal('Synth.wav');buildTracks();const realQuery=document.querySelector;let missingDetachedControls=false;document.querySelector=s=>{if(s==='#pp'&&!editorPanel.parentElement?.parentElement){missingDetachedControls=true;return null}return realQuery(s)};setVocal('Vocals.wav');document.querySelector=realQuery;`);
 assert.equal(await run('missingDetachedControls'),false);
+// Mix cuts have their own undo/redo and never alter stem timing.
+await run(`mastering=restoreMaster();tracks={};vocal=null;names=['One.wav'];bufs={'One.wav':ctx.createBuffer(2,1000,1000)};for(let i=0;i<1000;i++){bufs['One.wav'].getChannelData(0)[i]=i;bufs['One.wav'].getChannelData(1)[i]=-i}buildTracks();setVocal('One.wav');refreshMix();$('#mixStart').value=.2;$('#mixEnd').value=.4;cutMix('cut');`);
+assert.equal(await run('mixAudio.length'),800);assert.equal(await run('mixAudio.getChannelData(0)[300]'),500);assert.equal(await run('mixAudio.getChannelData(1)[300]'),-500);assert.equal(await run('bufs[vocal].length'),1000);assert.equal(await run('edits.length'),0);
+await run('undoMix()');assert.equal(await run('mixAudio.length'),1000);await run('redoMix()');assert.equal(await run('mixAudio.length'),800);
+await run(`$('#mixStart').value=.1;$('#mixEnd').value=.6;cutMix('keep');`);assert.equal(await run('mixAudio.length'),500);assert.equal(await run('mixAudio.getChannelData(0)[200]'),500);
+assert.equal(await run('masterRequest().mix_edits.length'),2);
+await run('mastering=restoreMaster(JSON.parse(JSON.stringify(mastering)));refreshMix()');assert.equal(await run('mixAudio.length'),500);await run('undoMix()');assert.equal(await run('mixAudio.length'),800);
+await run(`$('#mixStart').value=0;$('#mixEnd').value=.8;cutMix('cut');`);assert.equal(await run('mixAudio.length'),800);assert.equal(await run('mastering.mixEdits.length'),1);
+await run(`setLanguage('en')`);assert.equal(await run(`t('Klipp bort markering')`),'Cut selection');assert.equal(await run(`t('Spara projekt…')`),'Save project…');await run(`setLanguage('sv')`);assert.equal(await run(`t('Klipp bort markering')`),'Klipp bort markering');
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});

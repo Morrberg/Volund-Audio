@@ -123,6 +123,45 @@ function wav(freq){
   const panProject=await page.evaluate(async()=>{stashTrack();const r=await fetch(`/api/project/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:3,tracks,mastering})});const bytes=await r.arrayBuffer();const fd=new FormData();fd.append('files',new Blob([bytes]),'pan.vcleaner');return(await fetch('/api/upload',{method:'POST',body:fd})).json()});
   assert.equal(panProject.project.tracks['2 Guitar.wav'].edits.at(-1).pan_cycles,3);
   await page.screenshot({path:'target/ui-panning.png',fullPage:true});
+  // Cut the stereo mix, leaving every source stem and its edit history untouched.
+  await page.locator('#mixPanel summary').click();
+  await page.getByLabel('Start (s)',{exact:true}).fill('1');await page.getByLabel('Slut (s)',{exact:true}).fill('3');
+  await page.getByRole('button',{name:'Klipp bort markering',exact:true}).click();
+  assert.equal(await page.evaluate(()=>mixAudio.duration),6);
+  assert.equal(await page.evaluate(()=>bufs[vocal].duration),8);
+  await page.getByLabel('Start (s)',{exact:true}).fill('0.5');await page.getByLabel('Slut (s)',{exact:true}).fill('5.5');
+  await page.getByRole('button',{name:'Behåll bara markering',exact:true}).click();
+  assert.equal(await page.evaluate(()=>mixAudio.duration),5);
+  await page.getByRole('button',{name:'Ångra klipp',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),6);
+  await page.getByRole('button',{name:'Gör om klipp',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),5);
+  const mixCheck=await page.evaluate(async()=>{
+    const pre=await masterPost('premaster',masterRequest());if(!pre.ok)throw Error(await pre.text());const b=await ctx.decodeAudioData(await pre.arrayBuffer());
+    const expected=dryMix();let error=0;for(let i=0;i<b.length;i+=37)error=Math.max(error,Math.abs(b.getChannelData(0)[i]-expected.getChannelData(0)[i]));
+    const result=await masterPost('export',masterRequest(profileIds));const raw=new Uint8Array(await result.arrayBuffer()),v=new DataView(raw.buffer);let offset=0,report;
+    while(v.getUint32(offset,true)===0x04034b50){const size=v.getUint32(offset+18,true),n=v.getUint16(offset+26,true),extra=v.getUint16(offset+28,true),name=new TextDecoder().decode(raw.slice(offset+30,offset+30+n)),start=offset+30+n+extra;if(name==='Mastering-report.json')report=JSON.parse(new TextDecoder().decode(raw.slice(start,start+size)));offset=start+size}
+    return {duration:b.duration,error,durations:report.reports.map(r=>r.output.duration)};
+  });assert.equal(mixCheck.duration,5);assert.ok(mixCheck.error<0.0002);assert.deepEqual(mixCheck.durations,[5,5,5,5]);
+  const cutBytes=await page.evaluate(async()=>{stashTrack();const r=await fetch(`/api/project/${sid}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:3,tracks,mastering})});return Array.from(new Uint8Array(await r.arrayBuffer()))});
+  const cutProject=path.join(temp,'cut.vcleaner');fs.writeFileSync(cutProject,Buffer.from(cutBytes));const oldSid=await page.evaluate(()=>sid);
+  await page.locator('#f').setInputFiles(cutProject);await page.waitForFunction(old=>sid!==old&&!saving,oldSid);
+  await page.evaluate(()=>refreshMix());assert.equal(await page.evaluate(()=>mixAudio.duration),5);
+  await page.getByRole('button',{name:'Ångra klipp',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),6);
+  await page.getByRole('button',{name:'Gör om klipp',exact:true}).click();
+  await page.locator('#language').selectOption('en');
+  await page.getByRole('button',{name:'Cut selection',exact:true}).waitFor();
+  assert.equal(await page.locator('#masterProfile option[value="Kassett"]').textContent(),'Cassette');
+  assert.equal(await page.evaluate(()=>mastering.profiles.Kassett.id),'Kassett');
+  assert.equal(await page.getByRole('button',{name:'Drums.wav',exact:true}).textContent(),'Drums.wav');
+  await page.getByRole('button',{name:'Om / About',exact:true}).click();await page.getByText('A local audio editor for stems, stereo mixing and mastering.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.screenshot({path:'target/ui-mix-english.png',fullPage:true});
+  await page.locator('#language').selectOption('sv');await page.getByRole('button',{name:'Klipp bort markering',exact:true}).waitFor();
+  await page.screenshot({path:'target/ui-mix-swedish.png',fullPage:true});
+  // A single stereo WAV uses the same cut workflow without importing stems.
+  await page.locator('#f').setInputFiles(paths[0]);await page.waitForFunction(()=>names.length===1&&!saving);await page.evaluate(()=>refreshMix());
+  await page.getByLabel('Start (s)',{exact:true}).fill('2');await page.getByLabel('Slut (s)',{exact:true}).fill('7');
+  await page.getByRole('button',{name:'Behåll bara markering',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),5);
+  await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exitCode=1});

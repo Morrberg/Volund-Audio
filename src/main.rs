@@ -199,6 +199,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/master/export/:sid", post(mastering::batch))
         .route("/api/master/save/:sid", post(mastering::save_batch))
         .route("/api/master/single/:sid", post(mastering::single))
+        .route("/api/master/premaster/:sid", post(mastering::premaster))
         .route("/api/master/sides/:sid", post(mastering::sides))
         .layer(DefaultBodyLimit::max(2 << 30))
         .with_state(dir);
