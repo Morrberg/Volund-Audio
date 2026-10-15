@@ -47,7 +47,7 @@ jobs:
         with:
           node-version: 24
       - name: Test editor persistence
-        run: node tests/editor.test.cjs
+        run: node --test tests/editor.test.cjs tests/repair.test.cjs
       - name: Run tests
         run: cargo test --verbose
 

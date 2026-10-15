@@ -31,7 +31,7 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
 <p>Markera i stereomixen. Klippen gäller alla masteringprofiler. Stems behåller sin synk och sina redigeringar. En ensam WAV fungerar också.</p>
 <fieldset id="mixFields" disabled><button onclick="refreshMix()">Uppdatera mix</button><canvas id="mixWave" class="wave" aria-label="Mix waveform"></canvas>
 <div class="bar"><label>Start (s) <input id="mixStart" type="number" min="0" step="0.001" value="0" onchange="mixSelect()"></label><label>Slut (s) <input id="mixEnd" type="number" min="0" step="0.001" value="0" onchange="mixSelect()"></label><small id="mixDuration"></small></div>
-<div class="bar"><button onclick="playMix()">Spela mix</button><button onclick="stopMix()">■ Stopp</button><button onclick="cutMix('cut')">Klipp bort markering</button><button onclick="cutMix('keep')">Behåll bara markering</button><button onclick="undoMix()">Ångra klipp</button><button onclick="redoMix()">Gör om klipp</button><button onclick="saveMix()">Spara redigerad mix…</button></div><p id="mixStatus" role="status"></p></fieldset></details>
+<div class="bar"><button onclick="playMix()">Spela mix</button><button onclick="stopMix()">■ Stopp</button><button onclick="cutMix('cut')">Klipp bort markering</button><button onclick="cutMix('keep')">Behåll bara markering</button><button onclick="undoMix()">Ångra klipp</button><button onclick="redoMix()">Gör om klipp</button><button onclick="saveMix()">Spara redigerad mix…</button></div><div class="bar"><label>Trim Silence · tröskel dBFS <input id="silenceDb" type="number" min="-100" max="-10" value="-60"></label><label>Minsta tystnad (s) <input id="silenceMin" type="number" min="0.1" max="30" step="0.1" value="0.5"></label><label>Marginal (s) <input id="silencePad" type="number" min="0.01" max="2" step="0.01" value="0.1"></label><button onclick="trimSilence()">Trim Silence</button></div><small>Tar bort tystnad och förkortar mixen. Varje borttaget parti kan ångras med Ångra klipp.</small><p id="mixStatus" role="status"></p></fieldset></details>
 <details id="masterPanel" class="master-panel"><summary>Masteringstudio · en mix, flera utgåvor</summary>
 <p>Justera spårens nivåer, välj en profil och lyssna före/efter. Varje version skapas från samma redigerade mix.</p>
 <fieldset id="masterFields" disabled>
@@ -63,7 +63,7 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
   <label><input type="checkbox" onchange="loop=this.checked"> Loop markering</label>
   <span class="separator" aria-hidden="true"></span><button class="edit" onclick="addEdit('mute')">Tysta</button>
   <button class="edit" onclick="addEdit('fadein')">Fade-in</button>
-  <button class="edit" onclick="addEdit('fadeout')">Fade-out</button>
+  <button class="edit" onclick="addEdit('fadeout')">Fade-out</button><button class="edit" onclick="addEdit('declip',sel||[0,bufs[vocal]?.duration||0])">De-clip (spline)</button>
   <span class="separator" aria-hidden="true"></span><button onclick="undo()">Ångra</button><button onclick="redoE()">Gör om</button>
   <button onclick="ab()" id="abb">Visar: Redigerad</button>
 </div>
@@ -140,6 +140,31 @@ function setVocal(n){
   renderMetadata();rebuild();renderSugg();draw();saveState();
 }
 
+
+// Cubic Hermite spline between intact samples, with estimated boundary slopes.
+// Limit reconstruction to short same-polarity plateaus; linked gain preserves stereo balance.
+function declipSamples(channels){
+ let repaired=0;
+ for(const y of channels){let i=0;while(i<y.length){if(Math.abs(y[i])<.9999){i++;continue}const a=i,sign=Math.sign(y[i]);while(i<y.length&&Math.abs(y[i])>=.9999&&Math.sign(y[i])===sign)i++;const b=i,n=b-a;if(n<2||n>64||a<2||b+1>=y.length)continue;
+ const l=y[a-1],r=y[b],m0=l-y[a-2],m1=y[b+1]-r,d=n+1;if(sign*m0<=0||sign*m1>=0)continue;
+ const values=[];let valid=true;for(let k=0;k<n;k++){const t=(k+1)/d,t2=t*t,t3=t2*t,v=(2*t3-3*t2+1)*l+(t3-2*t2+t)*d*m0+(-2*t3+3*t2)*r+(t3-t2)*d*m1;values.push(v);if(!Number.isFinite(v)||sign*v<.9999||Math.abs(v)>2)valid=false}if(valid){y.set(values,a);repaired++}}
+ }
+ if(repaired){let peak=1;for(const y of channels)for(const v of y)peak=Math.max(peak,Math.abs(v));if(peak>1)for(const y of channels)for(let i=0;i<y.length;i++)y[i]*=.999/peak}
+ return repaired;
+}
+function silenceCuts(channels,sr,db,minSeconds,padSeconds){
+ const frames=channels[0].length,threshold=10**(db/20),minimum=Math.ceil(minSeconds*sr),pad=Math.ceil(padSeconds*sr),cuts=[];let i=0;
+ const quiet=j=>channels.every(y=>Number.isFinite(y[j])&&Math.abs(y[j])<=threshold);
+ while(i<frames){if(!quiet(i)){i++;continue}const start=i;while(i<frames&&quiet(i))i++;if(i-start<minimum)continue;const a=start===0?0:start+pad,b=i===frames?frames:i-pad;if(b>a&&b-a<frames)cuts.push({kind:'cut',start:a/sr,end:b/sr})}
+ return cuts.reverse();
+}
+function trimSilence(){
+ if(saving||!sid)return;const db=+$('#silenceDb').value,min=+$('#silenceMin').value,pad=+$('#silencePad').value;
+ if(!Number.isFinite(db)||db< -100||db> -10||!Number.isFinite(min)||min<.1||min>30||!Number.isFinite(pad)||pad<.01||pad>2){$('#mixStatus').textContent='Kontrollera inställningarna.';return}
+ refreshMix();if(!mixAudio)return;const cuts=silenceCuts(Array.from({length:mixAudio.numberOfChannels},(_,c)=>mixAudio.getChannelData(c)),mixAudio.sampleRate,db,min,pad);if(!cuts.length){$('#mixStatus').textContent='Ingen tystnad att ta bort (helt tysta filer behålls).';return}
+ mastering.mixEdits.push(...cuts);mastering.mixRedo=[];invalidateMaster();refreshMix();saveState();$('#mixStatus').textContent=`Trim Silence: ${cuts.length} partier borttagna. Ångra klipp återställer ett parti i taget.`;
+}
+
 function editedBuffer(name){
   const ops=name===vocal?edits:tracks[name]?.edits||[],b=bufs[name],key=JSON.stringify(ops);
   if(!ops.length){editedBuffers.delete(name);return b}
@@ -150,6 +175,7 @@ function editedBuffer(name){
   let panBase=null;
   for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter((e,i)=>e.kind==='pan'&&!ops.slice(i+1).some(later=>later.kind==='pan'&&later.start===e.start&&later.end===e.end))]){
     const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
+    if(e.kind==='declip'){declipSamples(Array.from({length:channels},(_,c)=>buffer.getChannelData(c).subarray(a,z)));continue}
     if(e.kind==='pan'){
       const left=buffer.getChannelData(0),right=buffer.getChannelData(1),edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));
       if(!panBase)panBase=[left.slice(),right.slice()];
@@ -258,7 +284,7 @@ function sampleGain(t,frame,sr,length){
   let gain=1;
   for(const e of t){
     const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
-    if(e.kind==="pan")continue;
+    if(e.kind==="pan"||e.kind==="declip")continue;
     if(e.kind==="fadein"){if(frame>=a&&frame<z)gain*=(frame-a)/n}
     else if(e.kind==="fadeout"){if(frame>=a&&frame<z)gain*=1-(frame-a)/n}
     else{const f=Math.min(Math.round(e.fade*sr),a,length-z);

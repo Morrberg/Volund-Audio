@@ -144,9 +144,10 @@ fn apply_edits(y: &mut [f32], sr: u32, ch: usize, mono: bool, edits: &[Edit]) ->
     let mut pan_base:Option<Vec<f32>>=None;
     let pans=edits.iter().enumerate().filter(|(i,e)|e.kind=="pan"&&!edits[i+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end)).map(|(_,e)|e);
     for e in edits.iter().filter(|e|e.kind!="pan").chain(pans) {
-        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan","declip"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
         if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
+        if e.kind=="declip" { crate::repair::declip(&mut y[a*ch..b*ch],ch); continue; }
         if e.kind=="pan" {
             let edge=((e.fade as f64*sr as f64).round() as usize).min((n-1)/2);
             let base=pan_base.get_or_insert_with(||y.to_vec());

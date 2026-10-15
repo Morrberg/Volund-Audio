@@ -386,3 +386,12 @@ Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar 
 | **Dither** | Ett mycket svagt brus som används vid slutlig heltalskvantisering för att minska kvantiseringsartefakter. |
 
 [Tillbaka till innehållet](#innehall) · [Till README](../README.md)
+
+
+## Trim Silence och De-clip (Tauri)
+
+Trim Silence finns i mixredigeringen. Tröskeln mäts som absolut samplingsnivå i dBFS i alla kanaler: en kanal med ljud räcker för att behålla partiet. Standard: −60 dBFS, minst 0,5 sekunders tystnad och 0,1 sekunds marginal runt ljud. Funktionen tar bort tysta partier och förkortar mixen; stem-original och deras inbördes synk bevaras. Helt tysta mixar behålls. Lyssna igenom resultatet, särskilt svaga efterklanger. Varje borttaget parti kan återställas med Ångra klipp. Klippen sparas i projektet och används vid mixexport/mastering.
+
+De-clip (spline) finns i spårverktygen och behandlar markeringen, eller hela valt spår om markering saknas. En kubisk Hermite-spline använder intakta grannsamplingar och deras lutningar för att uppskatta korta avplattade toppar. Den konservativa detekteringen kräver 2–64 på varandra följande samplingar med samma tecken och absolut nivå minst 0,9999. Långa skador, filkanter och osäkra rekonstruktioner lämnas orörda. När återskapade toppar överstiger full skala sänks hela behandlade partiet lika i alla kanaler till samplingspeak 0,999. Detta kan ge en nivåskillnad vid markeringens gräns; använd helst hela spåret. Det är inte en true-peak-limiter. Förhandslyssning och export använder motsvarande algoritm. Ångra återställer behandlingen och originalfiler skrivs aldrig över.
+
+Spline-metoden kan hjälpa kort hård digital klippning. Den reparerar inte generellt AI-artefakter, mjuk distorsion eller klippning som senare normaliserats till lägre nivå. Funktionen är en enkel egen implementation, inte RX:s algoritm.

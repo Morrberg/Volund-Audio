@@ -2,6 +2,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
+mod repair;
 mod mastering;
 mod album;
 #[cfg(not(target_os="freebsd"))]
