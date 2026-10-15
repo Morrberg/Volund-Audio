@@ -26,6 +26,10 @@
     "active": true,
     "targets": "all",
     "category": "AudioVideo",
-    "shortDescription": "Local stem editor, mixing and mastering"
+    "shortDescription": "Local stem editor, mixing and mastering",
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ]
   }
 }

@@ -1,5 +1,7 @@
 # Völund Audio – användarmanual
 
+<p align="center"><img src="../assets/volund-emblem.jpg" width="360" alt="Vingad Völund-symbol i antik brons"></p>
+
 **För version 0.8 · Smid fram ditt sound.**
 
 Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkanten om du vill följa instruktionerna ord för ord. Gränssnittet kan också visas på engelska.

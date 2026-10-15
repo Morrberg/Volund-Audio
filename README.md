@@ -1,14 +1,14 @@
-<p align="center"><img src="assets/icon.svg" width="80" alt="Völund Audio"></p>
+<p align="center"><img src="assets/volund-emblem.jpg" width="300" alt="Völund Audio: vingat Völund-symbol i antik brons"></p>
 
 # Völund Audio
 
 **Smid fram ditt sound.**
 
-En lokal ljudeditor för att redigera stems, forma en stereomix och skapa masterversioner för streaming, vinyl, CD och kassett. Namnet kommer från mästersmeden Völund: här smider vi låtar.
+En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namnet kommer från mästersmeden Völund: här smider vi låtar.
 
-**Aktuell version: 0.8.0 · Windows-program · Svenskt och engelskt gränssnitt · MIT-licens**
+**Version 0.8.0 · Tauri-port under test för Windows, macOS och Linux · Svenskt och engelskt gränssnitt · MIT-licens**
 
-[Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
+[Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Vinylrestaurering och låtuppdelning](docs/MANUAL.sv.md#arbetsomraden-och-vinylrestaurering) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
 
 ## Vad kan programmet göra?
 
@@ -18,6 +18,7 @@ En lokal ljudeditor för att redigera stems, forma en stereomix och skapa master
 | **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
 | **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
 | **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
+| **Vinylrestaurering** | Minska klick, knaster och rumble. Hitta tystnader som möjliga låtgränser, justera markörerna och exportera uppdelade spår. |
 | **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
 
 Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
@@ -75,7 +76,7 @@ node tests/editor.test.cjs
 cargo build --release
 ```
 
-Windows-bygget skapar `target/release/volund-audio.exe`. `build.bat` är en genväg till releasebygget. På andra operativsystem öppnas gränssnittet i webbläsaren.
+`cargo build --release` bygger Tauri-skrivbordsappen för Windows, Linux och macOS. Linux kräver Tauri/WebKitGTK-systempaketen som anges i GitHub Actions-flödet. FreeBSD använder webbläsarfallbacken tills skrivbordsbygget har verifierats där.
 
 [GitHub Actions-flödet](.github/workflows/rust.yml) kör Rust-tester på Linux och Windows samt gränssnitts- och exporttester i Microsoft Edge på Windows. Flödet sparar även skärmbilder som artifact. Det inbäddade Windows-fönstret och de vanliga spardialogerna behöver kompletteras med manuell provkörning.
 
@@ -83,4 +84,4 @@ Windows-bygget skapar `target/release/volund-audio.exe`. `build.bat` är en genv
 
 Programmet hette tidigare **Vocal Cleaner**. Äldre `.vcleaner`-projekt stöds fortfarande. GitHub-repot behåller tills vidare namnet `Vocal-cleaner`.
 
-Koden omfattas av [MIT-licensen](LICENSE). Ikonens vektorkälla finns i [assets/icon.svg](assets/icon.svg).
+Koden omfattas av [MIT-licensen](LICENSE). Programikonen finns i `icons/icon.png` och `icons/icon.ico`; den större Völund-illustrationen finns i `assets/volund-emblem.jpg`.
