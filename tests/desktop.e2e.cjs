@@ -22,6 +22,12 @@ function wav(freq,amplitude=12000){
   assert.ok(fs.existsSync(urlFile),'Application server did not start. '+appLog);
   browser=await chromium.launch({channel:'msedge',headless:true});
   const context=await browser.newContext({viewport:{width:1280,height:820}}),page=await context.newPage();
+  // A file URL has no backend /icon.svg route, like Tauri's bundled frontend.
+  const assetPage=await context.newPage();
+  await assetPage.goto(require('node:url').pathToFileURL(path.resolve('static/index.html')).href);
+  await assetPage.waitForFunction(()=>{const icon=document.querySelector('.brand img');return icon.complete&&icon.naturalWidth>0});
+  assert.ok((await assetPage.locator('.brand img').getAttribute('src')).startsWith('data:image/svg+xml;base64,'));
+  await assetPage.close();
   await page.goto(fs.readFileSync(urlFile,'utf8'));
   assert.equal(await page.title(),'Völund Audio');
   assert.equal(await page.locator('h1').textContent(),'Völund Audio');
