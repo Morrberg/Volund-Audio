@@ -58,3 +58,33 @@ mod tests {
         let mut y=vec![1.;100];let original=y.clone();assert_eq!(declip(&mut y,1),0);assert_eq!(y,original);
     }
 }
+
+/// First-order normalized DC blocker at 2 Hz, separate state per channel.
+/// State starts at zero; DC steps settle rather than receiving an instantaneous correction.
+pub fn dc_block(y: &mut [f32], sr: u32, ch: usize) {
+    if sr==0 || ch==0 { return; }
+    let r=(-2.*std::f64::consts::PI*2./sr as f64).exp();
+    let scale=(1.+r)*0.5;
+    let mut x1=vec![0f64;ch];let mut y1=vec![0f64;ch];
+    for frame in y.chunks_exact_mut(ch) {for c in 0..ch {
+        let x=frame[c] as f64;let out=scale*(x-x1[c])+r*y1[c];
+        x1[c]=x;y1[c]=out;frame[c]=out as f32;
+    }}
+}
+
+#[cfg(test)]
+mod dc_tests {
+    use super::*;
+    #[test]
+    fn removes_dc_without_channel_crosstalk_at_supported_rates() {
+        for sr in [44100,48000,88200,96000] {
+            let mut y=vec![0.;sr as usize*2];for f in y.chunks_exact_mut(2){f[0]=0.2;f[1]=-0.1;}
+            dc_block(&mut y,sr,2);assert!(y[y.len()-2].abs()<0.00001);assert!(y[y.len()-1].abs()<0.00001);
+        }
+    }
+    #[test]
+    fn preserves_audible_tone_after_settling() {
+        let sr=48000;let mut y:Vec<f32>=(0..sr*2).map(|i|(2.*std::f64::consts::PI*1000.*i as f64/sr as f64).sin() as f32*0.2+0.1).collect();
+        dc_block(&mut y,sr,1);let tail=&y[sr as usize..];let mean=tail.iter().map(|v|*v as f64).sum::<f64>()/sr as f64;let rms=(tail.iter().map(|v|(*v as f64).powi(2)).sum::<f64>()/sr as f64).sqrt();assert!(mean.abs()<0.00001);assert!((rms-0.2/2f64.sqrt()).abs()<0.001);
+    }
+}

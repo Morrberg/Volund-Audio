@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
+function element(){return {style:{},setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
 const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
  document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
@@ -81,5 +81,12 @@ await run(`$('#albumMatch').checked=true;$('#albumCustom').checked=true;$('#albu
 assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.equal(await run('sideRequest().tracks[0].match_level'),false);assert.equal(await run('sideRequest().tracks[0].offset_db'),-3);
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
 await run(`$('#albumMatch').checked=false;sideChanged()`);assert.equal(await run('sideDirty()'),true);assert.equal(await run(`$('#albumTarget').disabled`),true);
+await run(`saving=false;playing=false;globalThis.volumeBox=mixControls('Vocals.wav');globalThis.volumeSlider=volumeBox.children[0];volumeSlider.value=-7.5;volumeSlider.oninput()`);
+assert.equal(await run("tracks['Vocals.wav'].gain_db"),-7.5);assert.equal(await run('volumeBox.children[1].children[0].value'),-7.5);
+await run(`volumeSlider.value=99;volumeSlider.oninput()`);assert.equal(await run("tracks['Vocals.wav'].gain_db"),-7.5);
+await run(`globalThis.ramped=null;playing=true;srcs=[{stemName:'Vocals.wav',mixGain:{gain:{setTargetAtTime(value){globalThis.ramped=value}}}}];volumeSlider.value=-6;volumeSlider.oninput();playing=false;srcs=[]`);
+assert.ok(Math.abs(await run('ramped')-10**(-6/20))<1e-10);
+await run(`mastering=restoreMaster();masterValue('dc_block',true);mastering=restoreMaster(JSON.parse(JSON.stringify(mastering)))`);assert.equal(await run('masterRequest().profiles[0].dc_block'),true);
+await run(`showGlobalAnalysis({input_analysis:{true_peak_db:-1,true_peak_window:{start_seconds:7,end_seconds:7.1},short_term_max:{lufs:-10,start_seconds:4,end_seconds:7},short_term_min:null,dc_offset_per_channel:[.01,0],distribution:[{from_lufs:-11,to_lufs:-10,windows:1}]}})`);assert.equal(await run("$('#globalAnalysis').children.length"),1);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});

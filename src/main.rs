@@ -3,6 +3,7 @@
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
 mod repair;
+mod global_analysis;
 mod mastering;
 mod album;
 #[cfg(not(target_os="freebsd"))]
