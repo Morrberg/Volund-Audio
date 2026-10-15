@@ -88,5 +88,13 @@ await run(`globalThis.ramped=null;playing=true;srcs=[{stemName:'Vocals.wav',mixG
 assert.ok(Math.abs(await run('ramped')-10**(-6/20))<1e-10);
 await run(`mastering=restoreMaster();masterValue('dc_block',true);mastering=restoreMaster(JSON.parse(JSON.stringify(mastering)))`);assert.equal(await run('masterRequest().profiles[0].dc_block'),true);
 await run(`showGlobalAnalysis({input_analysis:{true_peak_db:-1,true_peak_window:{start_seconds:7,end_seconds:7.1},short_term_max:{lufs:-10,start_seconds:4,end_seconds:7},short_term_min:null,dc_offset_per_channel:[.01,0],distribution:[{from_lufs:-11,to_lufs:-10,windows:1}]}})`);assert.equal(await run("$('#globalAnalysis').children.length"),1);
+await run(`globalThis.areaNodes=[{hidden:false,getAttribute:()=>"editor vinyl"},{hidden:false,getAttribute:()=>"master"},{hidden:false,getAttribute:()=>"album"}];document.body={setAttribute(key,value){globalThis.bodyMode=value}};document.querySelectorAll=()=>areaNodes;chooseWorkspace('vinyl')`);
+assert.equal(await run('bodyMode'),'vinyl');assert.equal(await run('areaNodes[0].hidden'),false);assert.equal(await run('areaNodes[1].hidden'),true);assert.equal(await run('areaNodes[2].hidden'),true);
+await run(`chooseWorkspace('master')`);assert.equal(await run('areaNodes[0].hidden'),true);assert.equal(await run('areaNodes[1].hidden'),false);
+await run(`chooseWorkspace('editor');setVocal(names[0]);setVinylMarkers([.6,.2])`);assert.equal(await run('JSON.stringify(tracks[vocal].markers)'),'[0.2,0.6]');
+await run(`setVinylMarkers([0])`);assert.equal(await run('JSON.stringify(tracks[vocal].markers)'),'[0.2,0.6]');
+await run(`globalThis.beforeRestoration=projectFingerprint();tracks[vocal].restoration={declick:true,decrackle:false,sensitivity:3,derumble:true,rumble_hz:25,mono_bass:true};globalThis.restored=ctx.createBuffer(2,bufs[vocal].length,bufs[vocal].sampleRate);restored.getChannelData(0).fill(.125);restored.getChannelData(1).fill(.125);restoredBuffers.set(vocal,restored);edits=[];stashTrack();editedBuffers.clear()`);
+assert.notEqual(await run('projectFingerprint()'),await run('beforeRestoration'));assert.equal(await run('editedBuffer(vocal).getChannelData(0)[50]'),.125);assert.equal(await run('masterRequest().tracks.find(t=>t.stem===vocal).restoration.rumble_hz'),25);
+await run(`delete tracks[vocal].restoration;restoredBuffers.delete(vocal);editedBuffers.clear()`);assert.equal(await run('editedBuffer(vocal)===bufs[vocal]'),true);
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -3,6 +3,7 @@
 //! Originalfiler skrivs aldrig över; export ger en ny WAV-fil.
 mod metadata;
 mod repair;
+mod vinyl;
 mod global_analysis;
 mod mastering;
 mod album;
@@ -169,12 +170,13 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
 struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32,
     #[serde(default)] pan_from: f32, #[serde(default)] pan_to: f32, #[serde(default)] pan_cycles: u16 }
 #[derive(Deserialize)]
-struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes> }
+struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes>, #[serde(default)] restoration: Option<vinyl::Settings> }
 
 async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): Json<ExportReq>)
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
     let name = fname(&r.stem);
-    let (y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
+    let (mut y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
+    vinyl::apply(&mut y,sr,ch,r.restoration.as_ref()).map_err(bad)?;
     let (y, ch) = mastering::render_edits(y, sr, ch, &r.edits).map_err(bad)?;
     let spec = hound::WavSpec { channels: ch as u16, sample_rate: sr, bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float };
@@ -201,6 +203,8 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/analyze/:sid/:name", get(analyze))
         .route("/api/metadata/:sid/:name", get(inspect_metadata))
         .route("/api/export/:sid", post(export))
+        .route("/api/vinyl/markers/:sid", post(vinyl::markers))
+        .route("/api/vinyl/split/:sid", post(vinyl::split))
         .route("/api/save/:sid", post(save))
         .route("/api/project/:sid", post(save_project))
         .route("/api/master/analyze/:sid", post(mastering::analyze))
