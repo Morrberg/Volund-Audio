@@ -111,6 +111,8 @@ function wav(freq,amplitude=12000){
   await page.waitForFunction(old=>sid!==old&&selectedProfile().id==='Vinyl'&&mastering.title==='Låt 1'&&masterCache===null,previousSid);
   await page.waitForFunction(()=>document.querySelector('#masterTitle').value==='Låt 1');
   assert.equal(await page.locator('#master-bass_db').inputValue(),'-1.5');
+  await page.evaluate(()=>chooseWorkspace('editor'));
+  assert.ok(await page.locator('#tracks').isVisible());
   assert.equal(await page.getByLabel('Nivå Drums.wav',{exact:true}).inputValue(),'-3');
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
   await page.evaluate(()=>chooseWorkspace('editor'));
@@ -158,7 +160,9 @@ function wav(freq,amplitude=12000){
   assert.equal(await page.locator('.brand p').textContent(),'Forge your sound');
   assert.equal(await page.locator('#masterProfile option[value="Kassett"]').textContent(),'Cassette');
   assert.equal(await page.evaluate(()=>mastering.profiles.Kassett.id),'Kassett');
+  await page.evaluate(()=>chooseWorkspace('editor'));
   assert.equal(await page.getByRole('button',{name:'Drums.wav',exact:true}).textContent(),'Drums.wav');
+  await page.evaluate(()=>chooseWorkspace('mix'));
   await page.getByRole('button',{name:'Om / About',exact:true}).click();await page.getByText('A local audio editor for stems, stereo mixing and mastering.',{exact:true}).waitFor();
   assert.ok((await page.locator('#about').textContent()).includes('master smith Völund'));
   await page.getByRole('button',{name:'Close',exact:true}).click();
@@ -192,7 +196,7 @@ function wav(freq,amplitude=12000){
   assert.equal(await page.getByLabel('Matcha 03 Intro.wav',{exact:true}).isChecked(),false);assert.equal(await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).inputValue(),'-1.5');assert.equal(await page.locator('#albumTarget').inputValue(),'-6');assert.equal(await page.evaluate(()=>sideDirty()),false);
   await page.locator('#albumAnalyze').click();await page.waitForFunction(()=>!!albumPlan&&!saving);await page.screenshot({path:'target/ui-album-swedish.png',fullPage:true});
   await page.locator('#language').selectOption('en');await page.getByRole('button',{name:'Analyze album levels',exact:true}).waitFor();await page.screenshot({path:'target/ui-album-english.png',fullPage:true});
-  await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
+  await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');assert.ok(await page.locator('#startScreen').isVisible());await page.evaluate(()=>chooseWorkspace('editor'));await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exitCode=1});
