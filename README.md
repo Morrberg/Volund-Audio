@@ -15,7 +15,7 @@ En lokal ljudeditor för att redigera stems, forma en stereomix och skapa master
 | Del | Funktioner |
 |---|---|
 | **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |
-| **Demucs (experimentell)** | Separera en ensam mix med en separat installerad Demucs v4-miljö. De fyra nya stämmorna läggs till för nivåjustering och mixning. |
+| **HTDemucs v4 (experimentell)** | Separera en ensam mix med den medföljande Rust-motorn demucs-rs. De fyra nya stämmorna läggs till för nivåjustering och mixning. Modellvikter hämtas först när funktionen aktiveras. |
 | **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
 | **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
 | **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
@@ -23,7 +23,7 @@ En lokal ljudeditor för att redigera stems, forma en stereomix och skapa master
 
 Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
 
-Demucs-stöd är experimentellt och avstängt tills användaren anger en separat Python-miljö. Völund innehåller inte Demucs eller modellvikter; första separationen kan hämta HTDemucs-vikterna via Demucs.
+HTDemucs-stödet är experimentellt. Windows-paketet innehåller den Rust-baserade motorn demucs-rs, men inga modellvikter. När användaren startar separationen och godkänner hämtningen laddas HTDemucs-vikterna ner från Hugging Face. Völund använder ingen Python-installation; ljudfilerna bearbetas lokalt. demucs-rs använder Vulkan på Windows. Se [demucs-rs](https://github.com/nikhilunni/demucs-rs) och den medföljande licensen.
 
 ## Kom igång
 
