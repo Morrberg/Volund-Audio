@@ -414,6 +414,14 @@ Startvyn erbjuder Spårredigering, Mixredigering, Mastering, Vinylrestaurering o
 
 Vinylrestaurering behandlar valt originalspår före spårredigeringar, mixning och mastering. Aktivera önskade funktioner och tryck Tillämpa & förbered lyssning. Samma Rust-behandling används vid förhandslyssning, export av valt spår, uppdelad export och mastering. Inställningarna sparas i projektet; vid återöppning förbereds lyssningen på nytt från originalljudet. Återställ restaurering tar bort hela restaureringsbehandlingen. Originalfilerna ändras aldrig.
 
+### Separera en mix i instrument och sång
+
+Om en gammal vinylutgåva har en obalanserad mix kan du först importera en ensam stereoinspelning och trycka **Separera inspelad mix**. Demucs-RS skapar fyra nya spår: trummor, bas, övrigt och sång. Völund mutar originalmixen och väljer sångspåret; justera sedan spårens nivåer i Mixredigering. Originalfilen finns kvar.
+
+Den valfria funktionen kräver att du själv startar separationen. Första gången visas en fråga och Demucs-RS hämtar modellvikterna från Hugging Face. Vikterna ingår inte i program- eller testpaketet och ljudfilen skickas inte till Hugging Face. Windows-testpaketet innehåller den separata motorn bredvid Völund. Motorn paketeras för närvarande inte för Linux eller macOS.
+
+Separeringen kan ta längre tid än vinylfiltren och använder datorns grafikprocessor när Demucs-RS har tillgång till den. Resultatet är en uppskattning av instrumenten; läckage och artefakter kan förekomma. Lyssna på varje stämma och jämför med originalmixen innan export.
+
 De-click använder en lokal impulsdetektor med cirka 2 ms omgivning och begränsad reparationsbredd. Markerade korta impulser ersätts med linjär interpolation. De-crackle är ett experimentellt, känsligare andra pass för kortare impulser, inte en fullständig bredbands- eller spektral knastermodell. Börja med känslighet 3; höga värden kan påverka musikattacker. Jämför Original och Restaurerat vid samma position. Lyssning i denna vy isolerar valt spår och Original spelar det importerade ljudet utan spårredigeringar.
 
 De-rumble är ett fjärde ordningens Butterworth-högpass (24 dB/oktav), uppbyggt av två sektioner med rätt skilda Q-värden. Välj 20 eller 25 Hz. Monobas filtrerar sidokanalen med ett andra ordningens högpass vid 120 Hz och bevarar mittkanalen. Det minskar lågfrekevent stereoinnehåll gradvis; det är ingen exakt gräns eller automatisk korrigering av azimut, polaritet eller kanalfördröjning.
