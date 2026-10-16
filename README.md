@@ -14,13 +14,13 @@ En lokal ljudeditor för att redigera stems, forma en stereomix och skapa master
 
 | Del | Funktioner |
 |---|---|
-| **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |
+| **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |\n| **Demucs (experimentell)** | Separera en ensam mix med en separat installerad Demucs v4-miljö. De fyra nya stämmorna läggs till för nivåjustering och mixning. |
 | **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
 | **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
 | **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
 | **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
 
-Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
+Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.\n\nDemucs-stöd är experimentellt och avstängt tills användaren anger en separat Python-miljö. Völund innehåller inte Demucs eller modellvikter; första separationen kan hämta HTDemucs-vikterna via Demucs.
 
 ## Kom igång
 
