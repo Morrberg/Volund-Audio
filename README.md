@@ -78,7 +78,7 @@ node tests/editor.test.cjs
 cargo build --release
 ```
 
-Windows-bygget skapar `target/release/volund-audio.exe`. `build.bat` är en genväg till releasebygget. På andra operativsystem öppnas gränssnittet i webbläsaren.
+Windows-bygget skapar `target/release/volund-audio.exe`. GitHub Actions-paketet innehåller även `demucs.exe` från [demucs-rs v0.3.4](https://github.com/nikhilunni/demucs-rs/releases/tag/v0.3.4) och dess Apache-2.0-licens. Modellvikterna ingår inte. Vid lokal utveckling kan du bygga motorn i en separat checkout och ange sökvägen i `VOLUND_DEMUCS_PATH`. `build.bat` är en genväg till releasebygget. På andra operativsystem öppnas gränssnittet i webbläsaren.
 
 [GitHub Actions-flödet](.github/workflows/rust.yml) kör Rust-tester på Linux och Windows samt gränssnitts- och exporttester i Microsoft Edge på Windows. Flödet sparar även skärmbilder som artifact. Det inbäddade Windows-fönstret och de vanliga spardialogerna behöver kompletteras med manuell provkörning.
 
