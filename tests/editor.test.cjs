@@ -96,5 +96,12 @@ await run(`setVinylMarkers([0])`);assert.equal(await run('JSON.stringify(tracks[
 await run(`globalThis.beforeRestoration=projectFingerprint();tracks[vocal].restoration={declick:true,decrackle:false,sensitivity:3,derumble:true,rumble_hz:25,mono_bass:true};globalThis.restored=ctx.createBuffer(2,bufs[vocal].length,bufs[vocal].sampleRate);restored.getChannelData(0).fill(.125);restored.getChannelData(1).fill(.125);restoredBuffers.set(vocal,restored);edits=[];stashTrack();editedBuffers.clear()`);
 assert.notEqual(await run('projectFingerprint()'),await run('beforeRestoration'));assert.equal(await run('editedBuffer(vocal).getChannelData(0)[50]'),.125);assert.equal(await run('masterRequest().tracks.find(t=>t.stem===vocal).restoration.rumble_hz'),25);
 await run(`delete tracks[vocal].restoration;restoredBuffers.delete(vocal);editedBuffers.clear()`);assert.equal(await run('editedBuffer(vocal)===bufs[vocal]'),true);
-console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
+await run(`sid='test';saving=false;names=['vinyl-side.wav'];vocal='vinyl-side.wav';updateDemucsButton()`);
+assert.equal(await run("$('#demucsRun').disabled"),false);
+await run(`names.push('second.wav');updateDemucsButton()`);
+assert.equal(await run("$('#demucsRun').disabled"),true);
+assert.ok(html.includes('id="demucsPanel"'));
+assert.ok(html.includes('id="demucsFields"'));
+assert.ok(html.includes('volund-demucs-rs-consent-v1'));
+console.log('PASS: stem edits, project persistence, vinyl controls, and Demucs single-mix gating');
 })().catch(e=>{console.error(e);process.exitCode=1});
