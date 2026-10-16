@@ -6,7 +6,7 @@
 
 En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namnet kommer från mästersmeden Völund: här smider vi låtar.
 
-**Version 0.8.0 · Tauri-port under test för Windows, macOS och Linux · Svenskt och engelskt gränssnitt · MIT-licens**
+**Version 0.9.0 · Tauri-port under test för Windows, macOS och Linux · Svenskt och engelskt gränssnitt · MIT-licens**
 
 [Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Vinylrestaurering och låtuppdelning](docs/MANUAL.sv.md#arbetsomraden-och-vinylrestaurering) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
 

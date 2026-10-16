@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../assets/volund-emblem.jpg" width="360" alt="Vingad Völund-symbol i antik brons"></p>
 
-**För version 0.8 · Smid fram ditt sound.**
+**För version 0.9 · Smid fram ditt sound.**
 
 Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkanten om du vill följa instruktionerna ord för ord. Gränssnittet kan också visas på engelska.
 
@@ -339,7 +339,7 @@ Båda projekttyperna använder ändelsen `.vcleaner` och innehåller originalens
 
 **Ctrl+S sparar det aktiva spåret som WAV, inte hela projektet.** Använd projektknapparna uttryckligen när du vill kunna fortsätta redigera senare. Att spara ett spår eller exportera en master kan därför lämna projektet med osparade ändringar.
 
-Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.8.
+Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.9.
 
 <a id="felsokning"></a>
 ## 15. Felsökning och begränsningar
