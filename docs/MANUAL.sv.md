@@ -68,17 +68,16 @@ Använd unika filnamn. ZIP-importen tar bort katalogsökvägar; två filer som b
 En ensam WAV kan också öppnas här för klippning eller mastering. För ett album använder du i stället **Öppna färdiga låtar** i albumdelen; se [avsnitt 12](#album).
 
 <a id="demucs"></a>
-### Separera med Demucs
+### Separera med HTDemucs
 
-Demucs-stödet är experimentellt. Völund levereras inte med Demucs, Python eller modellvikter. Installera Demucs v4 i en separat Python-miljö och ange miljöns Python-fil i panelen **Demucs v4 · separation av stems**. På Windows kan sökvägen exempelvis vara `C:\Volund\demucs\.venv\Scripts\python.exe`. Völund sparar den sökvägen lokalt i appens inställningar; den ingår inte i låtprojektet.
+HTDemucs-stödet är experimentellt och kräver ingen Python-installation. Windows-paketet innehåller den separata Rust-motorn demucs-rs, men inga modellvikter. Demucs-RS använder Vulkan för GPU-beräkning på Windows. När du startar separationen första gången frågar Völund om modellen får hämtas från Hugging Face. Modellvikterna sparas av motorn för kommande körningar.
 
 1. Öppna en ensam mixfil med **Öppna stems / projekt**.
-2. Öppna Demucs-panelen, ange Python-sökvägen och välj **GPU · CUDA** eller **CPU**.
-3. Välj **Separera aktiv låt**. Vid första körningen bekräftar du att Demucs får hämta HTDemucs-modellvikterna. Hämtningen görs av den separata Demucs-installationen.
+2. Öppna panelen **HTDemucs v4 · separation av stems (experimentell)**.
+3. Välj **Separera aktiv låt** och godkänn nedladdningen av HTDemucs-vikterna. Första körningen kan också behöva kompilera GPU-shaders och därför ta längre tid.
 4. När separationen är klar läggs trummor, bas, övrigt och sång till som fyra nya spår. Originalmixen finns kvar men är mutad, så den inte dubblerar ljudet. Du kan jämföra genom att växla Mute och justera varje spår under [Balansera spårens nivåer](#balansera).
 
-Den här versionen använder HTDemucs v4 med inställningar som provats på RTX 2060. Lyssna igenom separationen och kontrollera artefakter; AI-separation kan blanda ljud mellan stämmorna. Demucs hämtar modellvikterna själv vid första körningen om de saknas.
-
+Lyssna igenom separationen och kontrollera artefakter; AI-separation kan blanda ljud mellan stämmorna. Se [demucs-rs](https://github.com/nikhilunni/demucs-rs) för källkod och licens.
 <a id="tidslinje"></a>
 ## 3. Tidslinje och uppspelning
 
