@@ -28,7 +28,7 @@
     "category": "AudioVideo",
     "shortDescription": "Local stem editor, mixing and mastering",
     "icon": [
-      "icons/icon.png",
+      "target/volund-icon-rgba.png",
       "icons/icon.ico"
     ]
   }
