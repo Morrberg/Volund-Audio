@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {style:{},setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
-const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
+function element(){return {style:{},setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){},drawImage(){},putImageData(){}})}}
+const context=vm.createContext({console,JSON,Math,Float32Array,Uint8ClampedArray,ImageData:class{constructor(data,width,height){this.data=data;this.width=width;this.height=height}},navigator:{userAgent:'Windows'},
  document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
@@ -20,6 +20,8 @@ await run(`fetch=async()=>({ok:true,json:async()=>({cancelled:true})});sel=[5,6]
 await run('saveWav()');assert.equal(await run('JSON.stringify(edits)===savedEdits'),false);
 await run('saveProject()');assert.equal(await run('projectDirty()'),true);
 await run(`buildTracks();draw();`);assert.equal(await run('trackCanvases.size'),2);assert.equal(await run('peakCache.size'),2);
+await run(`setWaveView('spectrogram')`);assert.equal(await run('waveView'),'spectrogram');assert.equal(await run("$('#waveView').value"),'spectrogram');assert.equal(await run('spectrogramCache.has(bufs[vocal])'),true);
+await run(`setWaveView('waveform')`);assert.equal(await run('waveView'),'waveform');
 await run(`trackCanvases.get('Drums.wav').onmousedown({offsetX:50,currentTarget:trackCanvases.get('Drums.wav')});`);
 assert.equal(await run('vocal'),'Drums.wav');assert.equal(await run('view.b'),10);
 assert.equal(await run('sampleGain([{kind:"mute",start:1,end:2,fade:0.01}],150,100,1000)'),0);
