@@ -52,15 +52,25 @@ jobs:
         run: cargo test --verbose
 
   build-windows:
-    name: Build Windows EXE
+    name: Build Windows package
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: Check out Demucs-RS
+        uses: actions/checkout@v4
+        with:
+          repository: nikhilunni/demucs-rs
+          ref: v0.3.4
+          path: demucs-rs
+
       - name: Build release
         run: cargo build --release
+
+      - name: Build optional Demucs-RS engine
+        run: cargo build --release --locked --manifest-path demucs-rs/demucs-cli/Cargo.toml
 
       - name: Run Windows tests
         run: cargo test --release
@@ -81,10 +91,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Upload Windows executable
+      - name: Package Völund Audio and optional engine
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target/package | Out-Null
+          Copy-Item target/release/volund-audio.exe target/package/
+          Copy-Item demucs-rs/target/release/demucs.exe target/package/
+          Copy-Item demucs-rs/LICENSE target/package/LICENSE-demucs-rs.txt
+
+      - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
           name: Volund-Audio-Windows
-          path: target/release/volund-audio.exe
+          path: target/package/
           if-no-files-found: error
           retention-days: 30
