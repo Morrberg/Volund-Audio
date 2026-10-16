@@ -31,3 +31,4 @@ strip = true
 
 [build-dependencies]
 tauri-build = { version = "2" }
+image = { version = "0.25", default-features = false, features = ["png"] }
