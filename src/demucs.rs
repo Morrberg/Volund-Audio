@@ -16,8 +16,7 @@ use std::{
     io::{Read, Write},
     path::{Path as FsPath, PathBuf},
     process::Command,
-    sync::mpsc::Sender,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -128,6 +127,7 @@ fn separate(root: &FsPath, sid: &str, source_name: &str, events: &Events) -> Res
         return Err("Källfilen finns inte i sessionen.".into());
     }
     prepare_model(events)?;
+    std::thread::sleep(Duration::from_millis(600));
     emit(events, json!({"type":"phase","phase":"separating"}));
 
     let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
