@@ -27,10 +27,9 @@ input,textarea{font:inherit;color:var(--fg);background:var(--surface);accent-col
   <span id="saveStatus" role="status" aria-live="polite">Öppna ljudfiler för att börja.</span>
 </div>
 
-<details id="demucsPanel" class="master-panel"><summary>Demucs v4 · separation av stems (experimentell)</summary>
-<p>Separera en stereomix till trummor, bas, övrigt och sång. Demucs körs från din egen Python-miljö. Völund innehåller varken Demucs eller modellvikter; första körningen kan hämta modellvikter via Demucs. Ljudet behandlas lokalt.</p>
+<details id="demucsPanel" class="master-panel"><summary>HTDemucs v4 · separation av stems (experimentell)</summary>
+<p>Separera en stereomix till trummor, bas, övrigt och sång med Rust-motorn demucs-rs. Ingen Python-installation behövs. Völund levereras med motorn men inte modellvikterna; första körningen hämtar HTDemucs-vikterna från Hugging Face. Ljudet behandlas lokalt.</p>
 <fieldset id="demucsFields">
-<div class="master-grid"><label>Python från Demucs-miljön<input id="demucsPython" type="text" autocomplete="off" placeholder="C:\Volund\demucs\.venv\Scripts\python.exe"></label><label>Beräkning<select id="demucsDevice"><option value="cuda">GPU · CUDA</option><option value="cpu">CPU</option></select></label></div>
 <div class="bar"><button class="p" id="demucsRun" onclick="separateCurrent()" disabled>Separera aktiv låt</button><small>Öppna en ensam mix för att aktivera separationen.</small></div>
 <p id="demucsStatus" role="status" aria-live="polite"></p>
 </fieldset></details>
@@ -89,7 +88,7 @@ const english={"Ljust tema": "Light theme", "Mörkt tema": "Dark theme", "＋ Ö
 let language='sv';
 Object.assign(english,{"Album · nivåmatchning och sida A/B": "Album · loudness matching and sides A/B", "Öppna färdiga låtar från samma masteringprofil, till exempel alla CD-versioner. Matcha upplevd ljudstyrka över hela albumet och exportera separata låtar eller sida A/B. Ingen ny EQ, kompressor eller limiter läggs på.": "Open finished tracks from the same mastering profile, such as all CD versions. Match perceived loudness across the album and export individual tracks or sides A/B. No additional EQ, compressor or limiter is applied.", "Matcha låtarnas upplevda ljudstyrka": "Match perceived loudness across tracks", "Eget LUFS-mål": "Custom LUFS target", "Albumets LUFS-mål": "Album LUFS target", "Automatiskt mål = medianen för de låtar som ska matchas. Avmarkera Matcha på ett lugnt intro eller välj en egen justering, exempelvis −3 dB. Om topparna kräver det sänks hela albumet lika mycket, så att balansen bevaras.": "Automatic target = median of the tracks selected for matching. Uncheck Match for a quiet intro, or add an adjustment such as −3 dB. If peaks require it, the entire album is attenuated equally to preserve its balance.", "Analysera albumnivåer": "Analyze album levels", "Spara nivåmatchade låtar som ZIP…": "Save album tracks as ZIP…", "Spara sidprojekt bevarar originalljud, låtordning, nivåmatchning, undantag och justeringar. Exporten innehåller WAV-filer och en mätrapport. LUFS ger en utgångspunkt: lyssna igenom övergångarna. EQ och klangbalans behöver fortfarande bedömas med öronen.": "Save side project preserves original audio, track order, level matching, exceptions and adjustments. Export includes WAV files and a measurement report. LUFS is a starting point: audition the transitions. EQ and tonal balance still need to be judged by ear.", "Matcha": "Match", "Egen justering efter nivåmatchning · dB": "Manual adjustment after loudness matching · dB", "Justering för ": "Adjustment for ", "Låt": "Track", "Före · LUFS": "Before · LUFS", "Efter · LUFS": "After · LUFS", "Justering · dB": "Adjustment · dB", "Efter ": "After ", "Före ": "Before ", "För kort eller tyst för LUFS; matchas inte.": "Too short or silent for LUFS; not matched.", "Beräknat albummål: ": "Calculated album target: ", "Nivåmatchning avstängd. ": "Loudness matching disabled. ", "Hela albumet sänks ": "The entire album is attenuated by ", " dB för att bevara balans och toppmarginal. ": " dB to preserve balance and peak headroom. ", "Inga mätbara låtar valda för matchning. ": "No measurable tracks selected for matching. ", "Värdena är beräknade; exporten mäts efter slutlig konvertering.": "Values are predicted; export is measured after final conversion.", "Analyserar albumets låtar…": "Analyzing album tracks…"});
 Object.assign(english,{'Smid fram ditt sound':'Forge your sound','Uppkallad efter mästersmeden Völund. Här smider vi låtar.':'Named after the master smith Völund. Here we forge songs.','Ta bort panorering':'Remove panning','❚❚ Paus':'❚❚ Pause','Visar: ':'Showing: ','Redigerad':'Edited','Varv':'Cycles','Markera först ett parti i spåret.':'Select a region in the track first.'});
-Object.assign(english,{"Demucs v4 · separation av stems (experimentell)": "Demucs v4 · stem separation (experimental)", "Separera en stereomix till trummor, bas, övrigt och sång. Demucs körs från din egen Python-miljö. Völund innehåller varken Demucs eller modellvikter; första körningen kan hämta modellvikter via Demucs. Ljudet behandlas lokalt.": "Separate a stereo mix into drums, bass, other and vocals. Demucs runs from your own Python environment. Völund includes neither Demucs nor model weights; the first run may download weights through Demucs. Audio is processed locally.", "Python från Demucs-miljön": "Python from the Demucs environment", "Beräkning": "Compute device", "GPU · CUDA": "GPU · CUDA", "CPU": "CPU", "Separera aktiv låt": "Separate active song", "Öppna en ensam mix för att aktivera separationen.": "Open a single mix to enable separation.", "Demucs kan hämta modellvikter första gången. Völund skickar inte med modellvikter. Fortsätt?": "Demucs may download model weights the first time. Völund does not include model weights. Continue?", "Ange sökvägen till Python i Demucs-miljön.": "Enter the path to Python in the Demucs environment.", "Separerar med Demucs. Första körningen kan hämta modellvikter…": "Separating with Demucs. The first run may download model weights…", "Demucs klar. Originalmixen har mutats; fyra separerade spår har lagts till.": "Demucs finished. The source mix is muted; four separated stems were added.", "Separeringen misslyckades: ": "Separation failed: "});
+Object.assign(english,{"HTDemucs v4 · separation av stems (experimentell)": "HTDemucs v4 · stem separation (experimental)", "Separera en stereomix till trummor, bas, övrigt och sång med Rust-motorn demucs-rs. Ingen Python-installation behövs. Völund levereras med motorn men inte modellvikterna; första körningen hämtar HTDemucs-vikterna från Hugging Face. Ljudet behandlas lokalt.": "Separate a stereo mix into drums, bass, other and vocals with the demucs-rs Rust engine. No Python installation is needed. Völund includes the engine but not model weights; the first run downloads HTDemucs weights from Hugging Face. Audio is processed locally.",  "Separera aktiv låt": "Separate active song", "Öppna en ensam mix för att aktivera separationen.": "Open a single mix to enable separation.", "Demucs-RS kan hämta HTDemucs-modellvikter från Hugging Face första gången. Völund skickar inte med modellvikterna. Fortsätt?": "Demucs-RS may download HTDemucs model weights from Hugging Face the first time. Völund does not include model weights. Continue?", "Separerar med Demucs-RS. Första körningen kan hämta modellvikter…": "Separating with Demucs-RS. The first run may download model weights…", "Demucs-RS klar. Originalmixen har mutats; fyra separerade spår har lagts till.": "Demucs-RS finished. The source mix is muted; four separated stems were added.", "Separeringen misslyckades: ": "Separation failed: "});
 const translationPattern=new RegExp(Object.keys(english).filter(key=>key.length>=4).sort((a,b)=>b.length-a.length).map(key=>key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'g');
 function t(text){if(language!=='en')return text;if(english[text]!==undefined)return english[text];return text.replace(translationPattern,key=>english[key])}
 
@@ -123,21 +122,16 @@ $("#f").onchange=async e=>{
   finally{masterBusy(false)}
 };
 
-let demucsConfigured='';try{demucsConfigured=localStorage.getItem('volund-demucs-python')||''}catch{}
-$('#demucsPython').value=demucsConfigured;
-$('#demucsPython').oninput=()=>{try{localStorage.setItem('volund-demucs-python',$('#demucsPython').value)}catch{}updateDemucsButton()};
-function updateDemucsButton(){const button=$('#demucsRun');if(button)button.disabled=!sid||saving||names.length!==1||!vocal||!$('#demucsPython').value.trim()}
+function updateDemucsButton(){const button=$('#demucsRun');if(button)button.disabled=!sid||saving||names.length!==1||!vocal}
 async function separateCurrent(){
   if(!sid||saving||names.length!==1||!vocal)return;
-  const python=$('#demucsPython').value.trim();
-  if(!python){$('#demucsStatus').textContent=t('Ange sökvägen till Python i Demucs-miljön.');return}
-  let consent=false;try{consent=localStorage.getItem('volund-demucs-consent')==='yes'}catch{}
-  if(!consent&&!confirm(t('Demucs kan hämta modellvikter första gången. Völund skickar inte med modellvikter. Fortsätt?')))return;
-  try{localStorage.setItem('volund-demucs-consent','yes')}catch{}
+  let consent=false;try{consent=localStorage.getItem('volund-demucs-rs-consent-v1')==='yes'}catch{}
+  if(!consent&&!confirm(t('Demucs-RS kan hämta HTDemucs-modellvikter från Hugging Face första gången. Völund skickar inte med modellvikterna. Fortsätt?')))return;
+  try{localStorage.setItem('volund-demucs-rs-consent-v1','yes')}catch{}
   stopMix();stop();stopMaster();stashTrack();const source=vocal;
-  masterBusy(true);$('#demucsStatus').textContent=t('Separerar med Demucs. Första körningen kan hämta modellvikter…');
+  masterBusy(true);$('#demucsStatus').textContent=t('Separerar med Demucs-RS. Första körningen kan hämta modellvikter…');
   try{
-    const r=await fetch('/api/demucs/'+sid,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stem:source,python,device:$('#demucsDevice').value})});
+    const r=await fetch('/api/demucs/'+sid,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stem:source})});
     if(!r.ok)throw new Error(await r.text());const result=await r.json(),added=[];
     for(const name of result.stems){const audio=await fetch('/api/stem/'+sid+'/'+encodeURIComponent(name));if(!audio.ok)throw new Error(await audio.text());bufs[name]=await ctx.decodeAudioData(await audio.arrayBuffer());metaInfo[name]={fields:[],pictures:0,binary:0};added.push(name)}
     if(added.length!==4)throw new Error('Demucs returnerade inte fyra stämmor.');
@@ -145,7 +139,7 @@ async function separateCurrent(){
     names.push(...added);names.sort(compareStems);editedBuffers.clear();buildTracks();renderMaster();
     const select=$('#vsel');select.replaceChildren(...names.map(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;return o}));
     select.value=added.find(n=>n.endsWith('_vocals.wav'))||added[0];setVocal(select.value);
-    $('#demucsStatus').textContent=t('Demucs klar. Originalmixen har mutats; fyra separerade spår har lagts till.');
+    $('#demucsStatus').textContent=t('Demucs-RS klar. Originalmixen har mutats; fyra separerade spår har lagts till.');
   }catch(e){$('#demucsStatus').textContent=t('Separeringen misslyckades: ')+e.message}
   finally{masterBusy(false);updateDemucsButton()}
 }
