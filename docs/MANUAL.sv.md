@@ -10,7 +10,7 @@ Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkante
 ## Innehåll
 
 1. [Förstå arbetsflödet](#arbetsflode)
-2. [Starta och öppna filer](#starta)
+2. [Starta och öppna filer](#starta)\n   - [Separera med Demucs](#demucs)
 3. [Tidslinje och uppspelning](#tidslinje)
 4. [Tysta, tona och ångra](#redigera)
 5. [Hitta förslag på oönskade ljud](#forslag)
@@ -65,6 +65,18 @@ Du kan öppna ZIP-filen direkt. Alla importerade spår visas och sorteras efter 
 Använd unika filnamn. ZIP-importen tar bort katalogsökvägar; två filer som båda heter `Vocals.wav` blir därför inte två skilda spår.
 
 En ensam WAV kan också öppnas här för klippning eller mastering. För ett album använder du i stället **Öppna färdiga låtar** i albumdelen; se [avsnitt 12](#album).
+
+<a id="demucs"></a>
+### Separera med Demucs
+
+Demucs-stödet är experimentellt. Völund levereras inte med Demucs, Python eller modellvikter. Installera Demucs v4 i en separat Python-miljö och ange miljöns Python-fil i panelen **Demucs v4 · separation av stems**. På Windows kan sökvägen exempelvis vara `C:\Volund\demucs\.venv\Scripts\python.exe`. Völund sparar den sökvägen lokalt i appens inställningar; den ingår inte i låtprojektet.
+
+1. Öppna en ensam mixfil med **Öppna stems / projekt**.
+2. Öppna Demucs-panelen, ange Python-sökvägen och välj **GPU · CUDA** eller **CPU**.
+3. Välj **Separera aktiv låt**. Vid första körningen bekräftar du att Demucs får hämta HTDemucs-modellvikterna. Hämtningen görs av den separata Demucs-installationen.
+4. När separationen är klar läggs trummor, bas, övrigt och sång till som fyra nya spår. Originalmixen finns kvar men är mutad, så den inte dubblerar ljudet. Du kan jämföra genom att växla Mute och justera varje spår under [Balansera spårens nivåer](#balansera).
+
+Den här versionen använder HTDemucs v4 med inställningar som provats på RTX 2060. Lyssna igenom separationen och kontrollera artefakter; AI-separation kan blanda ljud mellan stämmorna. Demucs hämtar modellvikterna själv vid första körningen om de saknas.
 
 <a id="tidslinje"></a>
 ## 3. Tidslinje och uppspelning
