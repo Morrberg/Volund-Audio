@@ -20,7 +20,7 @@ await run(`fetch=async()=>({ok:true,json:async()=>({cancelled:true})});sel=[5,6]
 await run('saveWav()');assert.equal(await run('JSON.stringify(edits)===savedEdits'),false);
 await run('saveProject()');assert.equal(await run('projectDirty()'),true);
 await run(`buildTracks();draw();`);assert.equal(await run('trackCanvases.size'),2);assert.equal(await run('peakCache.size'),2);
-await run(`setWaveView('spectrogram')`);assert.equal(await run('waveView'),'spectrogram');assert.equal(await run("$('#waveView').value"),'spectrogram');assert.equal(await run('spectrogramCache.has(bufs[vocal])'),true);
+await run(`setWaveView('spectrogram')`);assert.equal(await run('waveView'),'spectrogram');assert.equal(await run("$('#waveView').value"),'spectrogram');assert.equal(await run('spectrogramCache.has(useEd?editedBuffer(vocal):bufs[vocal])'),true);
 await run(`setWaveView('waveform')`);assert.equal(await run('waveView'),'waveform');
 await run(`trackCanvases.get('Drums.wav').onmousedown({offsetX:50,currentTarget:trackCanvases.get('Drums.wav')});`);
 assert.equal(await run('vocal'),'Drums.wav');assert.equal(await run('view.b'),10);
