@@ -13,7 +13,7 @@ symphonia = { version = "0.5", features = ["mp3", "flac", "wav", "pcm"] }
 hound = "3"
 ebur128 = "0.1.10"
 lofty = "0.25"
-zip = { version = "0.6", default-features = false, features = ["deflate"] }
+zip = { version = "2.2.0", default-features = false, features = ["deflate"] }
 open = "5"
 
 [profile.release]
