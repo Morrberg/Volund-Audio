@@ -10,7 +10,8 @@ Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkante
 ## Innehåll
 
 1. [Förstå arbetsflödet](#arbetsflode)
-2. [Starta och öppna filer](#starta)\n   - [Separera med Demucs](#demucs)
+2. [Starta och öppna filer](#starta)
+   - [Separera med Demucs](#demucs)
 3. [Tidslinje och uppspelning](#tidslinje)
 4. [Tysta, tona och ångra](#redigera)
 5. [Hitta förslag på oönskade ljud](#forslag)
