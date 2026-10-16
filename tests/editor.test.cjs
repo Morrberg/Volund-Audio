@@ -82,13 +82,15 @@ assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.e
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
 await run(`$('#albumMatch').checked=false;sideChanged()`);assert.equal(await run('sideDirty()'),true);assert.equal(await run(`$('#albumTarget').disabled`),true);
 
-await run(`sid='test';names=['Original.wav'];bufs={'Original.wav':ctx.createBuffer(2,1000,100)};tracks={};metaInfo={};vocal=null;editedBuffers.clear();ctx.decodeAudioData=async()=>ctx.createBuffer(2,1000,100);buildTracks();setVocal('Original.wav');$('#demucsPython').value='C:/demucs/.venv/Scripts/python.exe';$('#demucsDevice').value='cuda';`);
+await run(`sid='test';names=['Original.wav'];bufs={'Original.wav':ctx.createBuffer(2,1000,100)};tracks={};metaInfo={};vocal=null;editedBuffers.clear();ctx.decodeAudioData=async()=>ctx.createBuffer(2,1000,100);buildTracks();setVocal('Original.wav');`);
 await run(`fetch=async(url,options={})=>{if(url.startsWith('/api/demucs/')){globalThis.demucsRequest=JSON.parse(options.body);return {ok:true,json:async()=>({stems:['Original_demucs_drums.wav','Original_demucs_bass.wav','Original_demucs_other.wav','Original_demucs_vocals.wav']})}}return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)}};`);
 await run('separateCurrent()');
 assert.equal(await run('names.length'),5);assert.equal(await run("tracks['Original.wav'].mute"),true);
 assert.equal(await run("names.includes('Original_demucs_vocals.wav')"),true);
 assert.equal(await run('vocal'),'Original_demucs_vocals.wav');
-assert.equal(await run('demucsRequest.device'),'cuda');
+assert.equal(await run('demucsRequest.stem'),'Original.wav');
+assert.equal(await run("'python' in demucsRequest"),false);
+assert.equal(await run("'device' in demucsRequest"),false);
 
 console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation, Demucs import');
 })().catch(e=>{console.error(e);process.exitCode=1});
