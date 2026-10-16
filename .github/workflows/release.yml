@@ -1,0 +1,101 @@
+name: Völund Audio - Release Packages
+
+on:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    name: Package Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check out Demucs-RS
+        uses: actions/checkout@v4
+        with:
+          repository: nikhilunni/demucs-rs
+          ref: v0.3.4
+          path: demucs-rs
+
+      - name: Test
+        run: cargo test --release
+      - name: Build release
+        run: cargo build --release
+      - name: Build optional Demucs-RS engine
+        run: cargo build --release --locked --manifest-path demucs-rs/demucs-cli/Cargo.toml
+
+      - name: Create zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target/package | Out-Null
+          Copy-Item target/release/volund-audio.exe target/package/
+          Copy-Item demucs-rs/target/release/demucs.exe target/package/
+          Copy-Item demucs-rs/LICENSE target/package/LICENSE-demucs-rs.txt
+          Copy-Item LICENSE target/package/LICENSE.txt
+          Copy-Item README.md target/package/
+          Compress-Archive -Path target/package/* -DestinationPath Volund-Audio-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Volund-Audio-Windows-zip
+          path: Volund-Audio-Windows.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  package-linux:
+    name: Package Linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev zip
+      - name: Test
+        run: cargo test --release
+      - name: Build release
+        run: cargo build --release
+      - name: Create zip
+        run: |
+          mkdir -p package/Volund-Audio-Linux
+          cp target/release/volund-audio package/Volund-Audio-Linux/
+          chmod +x package/Volund-Audio-Linux/volund-audio
+          cp LICENSE README.md package/Volund-Audio-Linux/
+          cd package && zip -r ../Volund-Audio-Linux.zip Volund-Audio-Linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Volund-Audio-Linux-zip
+          path: Volund-Audio-Linux.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: Attach to GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [package-windows, package-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Volund-Audio-*-zip
+          merge-multiple: true
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber Volund-Audio-*.zip
