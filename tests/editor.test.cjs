@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
 function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
-const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
+const context=vm.createContext({console,JSON,Math,Float32Array,confirm:()=>true,localStorage:{getItem:()=>null,setItem(){}},navigator:{userAgent:'Windows'},
  document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
@@ -81,5 +81,14 @@ await run(`$('#albumMatch').checked=true;$('#albumCustom').checked=true;$('#albu
 assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.equal(await run('sideRequest().tracks[0].match_level'),false);assert.equal(await run('sideRequest().tracks[0].offset_db'),-3);
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
 await run(`$('#albumMatch').checked=false;sideChanged()`);assert.equal(await run('sideDirty()'),true);assert.equal(await run(`$('#albumTarget').disabled`),true);
-console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
+
+await run(\`sid='test';names=['Original.wav'];bufs={'Original.wav':ctx.createBuffer(2,1000,100)};tracks={};metaInfo={};vocal=null;editedBuffers.clear();buildTracks();setVocal('Original.wav');$('#demucsPython').value='C:/demucs/.venv/Scripts/python.exe';$('#demucsDevice').value='cuda';\`);
+await run(\`fetch=async(url,options={})=>{if(url.startsWith('/api/demucs/')){globalThis.demucsRequest=JSON.parse(options.body);return {ok:true,json:async()=>({stems:['Original_demucs_drums.wav','Original_demucs_bass.wav','Original_demucs_other.wav','Original_demucs_vocals.wav']})}}return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)}};\`);
+await run('separateCurrent()');
+assert.equal(await run('names.length'),5);assert.equal(await run("tracks['Original.wav'].mute"),true);
+assert.equal(await run("names.includes('Original_demucs_vocals.wav')"),true);
+assert.equal(await run('vocal'),'Original_demucs_vocals.wav');
+assert.equal(await run('demucsRequest.device'),'cuda');
+
+console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation, Demucs import');
 })().catch(e=>{console.error(e);process.exitCode=1});
