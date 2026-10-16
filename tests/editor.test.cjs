@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-function element(){return {setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){}})}}
-const context=vm.createContext({console,JSON,Math,Float32Array,navigator:{userAgent:'Windows'},
+function element(){return {style:{},setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){},drawImage(){},putImageData(){}})}}
+const context=vm.createContext({console,JSON,Math,Float32Array,Uint8ClampedArray,ImageData:class{constructor(data,width,height){this.data=data;this.width=width;this.height=height}},navigator:{userAgent:'Windows'},
  document:{createTextNode:text=>({textContent:text}),createElement:element,querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
@@ -20,6 +20,8 @@ await run(`fetch=async()=>({ok:true,json:async()=>({cancelled:true})});sel=[5,6]
 await run('saveWav()');assert.equal(await run('JSON.stringify(edits)===savedEdits'),false);
 await run('saveProject()');assert.equal(await run('projectDirty()'),true);
 await run(`buildTracks();draw();`);assert.equal(await run('trackCanvases.size'),2);assert.equal(await run('peakCache.size'),2);
+await run(`setWaveView('spectrogram')`);assert.equal(await run('waveView'),'spectrogram');assert.equal(await run("$('#waveView').value"),'spectrogram');assert.equal(await run('spectrogramCache.has(useEd?editedBuffer(vocal):bufs[vocal])'),true);
+await run(`setWaveView('waveform')`);assert.equal(await run('waveView'),'waveform');
 await run(`trackCanvases.get('Drums.wav').onmousedown({offsetX:50,currentTarget:trackCanvases.get('Drums.wav')});`);
 assert.equal(await run('vocal'),'Drums.wav');assert.equal(await run('view.b'),10);
 assert.equal(await run('sampleGain([{kind:"mute",start:1,end:2,fade:0.01}],150,100,1000)'),0);
@@ -81,5 +83,28 @@ await run(`$('#albumMatch').checked=true;$('#albumCustom').checked=true;$('#albu
 assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.equal(await run('sideRequest().tracks[0].match_level'),false);assert.equal(await run('sideRequest().tracks[0].offset_db'),-3);
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
 await run(`$('#albumMatch').checked=false;sideChanged()`);assert.equal(await run('sideDirty()'),true);assert.equal(await run(`$('#albumTarget').disabled`),true);
-console.log('PASS: stem edits, undo/redo, WAV save, project save, cancellation');
+await run(`saving=false;playing=false;globalThis.volumeBox=mixControls('Vocals.wav');globalThis.volumeSlider=volumeBox.children[0];volumeSlider.value=-7.5;volumeSlider.oninput()`);
+assert.equal(await run("tracks['Vocals.wav'].gain_db"),-7.5);assert.equal(await run('volumeBox.children[1].children[0].value'),-7.5);
+await run(`volumeSlider.value=99;volumeSlider.oninput()`);assert.equal(await run("tracks['Vocals.wav'].gain_db"),-7.5);
+await run(`globalThis.ramped=null;playing=true;srcs=[{stemName:'Vocals.wav',mixGain:{gain:{setTargetAtTime(value){globalThis.ramped=value}}}}];volumeSlider.value=-6;volumeSlider.oninput();playing=false;srcs=[]`);
+assert.ok(Math.abs(await run('ramped')-10**(-6/20))<1e-10);
+await run(`mastering=restoreMaster();masterValue('dc_block',true);mastering=restoreMaster(JSON.parse(JSON.stringify(mastering)))`);assert.equal(await run('masterRequest().profiles[0].dc_block'),true);
+await run(`showGlobalAnalysis({input_analysis:{true_peak_db:-1,true_peak_window:{start_seconds:7,end_seconds:7.1},short_term_max:{lufs:-10,start_seconds:4,end_seconds:7},short_term_min:null,dc_offset_per_channel:[.01,0],distribution:[{from_lufs:-11,to_lufs:-10,windows:1}]}})`);assert.equal(await run("$('#globalAnalysis').children.length"),1);
+await run(`globalThis.areaNodes=[{hidden:false,getAttribute:()=>"editor vinyl"},{hidden:false,getAttribute:()=>"master"},{hidden:false,getAttribute:()=>"album"}];document.body={setAttribute(key,value){globalThis.bodyMode=value}};document.querySelectorAll=()=>areaNodes;chooseWorkspace('vinyl')`);
+assert.equal(await run('bodyMode'),'vinyl');assert.equal(await run('areaNodes[0].hidden'),false);assert.equal(await run('areaNodes[1].hidden'),true);assert.equal(await run('areaNodes[2].hidden'),true);
+await run(`chooseWorkspace('master')`);assert.equal(await run('areaNodes[0].hidden'),true);assert.equal(await run('areaNodes[1].hidden'),false);
+await run(`chooseWorkspace('editor');setVocal(names[0]);setVinylMarkers([.6,.2])`);assert.equal(await run('JSON.stringify(tracks[vocal].markers)'),'[0.2,0.6]');
+await run(`setVinylMarkers([0])`);assert.equal(await run('JSON.stringify(tracks[vocal].markers)'),'[0.2,0.6]');
+await run(`globalThis.beforeRestoration=projectFingerprint();tracks[vocal].restoration={declick:true,decrackle:false,sensitivity:3,derumble:true,rumble_hz:25,mono_bass:true};globalThis.restored=ctx.createBuffer(2,bufs[vocal].length,bufs[vocal].sampleRate);restored.getChannelData(0).fill(.125);restored.getChannelData(1).fill(.125);restoredBuffers.set(vocal,restored);edits=[];stashTrack();editedBuffers.clear()`);
+assert.notEqual(await run('projectFingerprint()'),await run('beforeRestoration'));assert.equal(await run('editedBuffer(vocal).getChannelData(0)[50]'),.125);assert.equal(await run('masterRequest().tracks.find(t=>t.stem===vocal).restoration.rumble_hz'),25);
+await run(`delete tracks[vocal].restoration;restoredBuffers.delete(vocal);editedBuffers.clear()`);assert.equal(await run('editedBuffer(vocal)===bufs[vocal]'),true);
+await run(`sid='test';saving=false;names=['vinyl-side.wav'];vocal='vinyl-side.wav';updateDemucsButton()`);
+assert.equal(await run("$('#demucsRun').disabled"),false);
+await run(`names.push('second.wav');updateDemucsButton()`);
+assert.equal(await run("$('#demucsRun').disabled"),true);
+assert.match(html,/<img src="data:image\/svg\+xml;base64,[^"]+" alt="Völund Audio-emblem">/);
+assert.ok(html.includes('id="demucsPanel"'));
+assert.ok(html.includes('id="demucsFields"'));
+assert.ok(html.includes('volund-demucs-rs-consent-v1'));
+console.log('PASS: stem edits, project persistence, vinyl controls, and Demucs single-mix gating');
 })().catch(e=>{console.error(e);process.exitCode=1});

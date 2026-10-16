@@ -1,12 +1,14 @@
 fn main() {
-    println!("cargo:rerun-if-changed=assets/icon.ico");
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        let mut resource = winresource::WindowsResource::new();
-        resource.set_icon("assets/icon.ico");
-        resource.set("ProductName", "Völund Audio");
-        resource.set("InternalName", "volund-audio");
-        resource.set("OriginalFilename", "volund-audio.exe");
-        resource.set("FileDescription", "Völund Audio - Stem Editor, Mix & Mastering");
-        resource.compile().expect("kunde inte bädda in programikonen");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("freebsd") {
+        // Tauri requires an RGBA PNG. Normalize the artwork into target/ so
+        // builds work with palette or RGB source PNGs without changing assets.
+        let image = image::open("icons/icon.png")
+            .expect("cannot read application icon")
+            .to_rgba8();
+        std::fs::create_dir_all("target").expect("cannot create target directory");
+        image.save("target/volund-icon-rgba.png")
+            .expect("cannot write RGBA application icon");
+        println!("cargo:rerun-if-changed=icons/icon.png");
+        tauri_build::build();
     }
 }

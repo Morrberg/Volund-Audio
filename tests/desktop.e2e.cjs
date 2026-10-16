@@ -22,11 +22,18 @@ function wav(freq,amplitude=12000){
   assert.ok(fs.existsSync(urlFile),'Application server did not start. '+appLog);
   browser=await chromium.launch({channel:'msedge',headless:true});
   const context=await browser.newContext({viewport:{width:1280,height:820}}),page=await context.newPage();
+  // A file URL has no backend /icon.svg route, like Tauri's bundled frontend.
+  const assetPage=await context.newPage();
+  await assetPage.goto(require('node:url').pathToFileURL(path.resolve('static/index.html')).href);
+  await assetPage.waitForFunction(()=>{const icon=document.querySelector('.brand img');return icon.complete&&icon.naturalWidth>0});
+  assert.ok((await assetPage.locator('.brand img').getAttribute('src')).startsWith('data:image/svg+xml;base64,'));
+  await assetPage.close();
   await page.goto(fs.readFileSync(urlFile,'utf8'));
   assert.equal(await page.title(),'Völund Audio');
   assert.equal(await page.locator('h1').textContent(),'Völund Audio');
   assert.equal(await page.locator('.brand p').textContent(),'Smid fram ditt sound');
   const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('UI error:',e.message)});
+  assert.ok(await page.locator('#startScreen').isVisible());assert.equal(await page.locator('#masterPanel').isVisible(),false);await page.getByRole('button',{name:'Spårredigering',exact:false}).click();
   await page.locator('#f').setInputFiles(paths);
   await page.locator('section.track').nth(3).waitFor();
   assert.deepEqual(await page.locator('section.track header > button').allTextContents(),['1 Lead Vocals.wav','Drums.wav','2 Guitar.wav','10 Guitar.wav']);
@@ -65,11 +72,12 @@ function wav(freq,amplitude=12000){
   });
   assert.equal(cleared.fields.length,0);assert.equal(cleared.pictures,0);assert.equal(cleared.binary,0);
   // Exercise actual UI handlers against the real mastering backend.
-  await page.locator('#masterPanel summary').click();
-  await page.locator('#masterTitle').fill('Låt 1');await page.locator('#masterArtist').fill('Chaoswrought');
+
   await page.getByLabel('Nivå Drums.wav',{exact:true}).fill('-3');await page.getByLabel('Nivå Drums.wav',{exact:true}).press('Tab');
   await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).click();
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.evaluate(()=>chooseWorkspace('master'));assert.equal(await page.locator('#tracks').isVisible(),false);
+  await page.locator('#masterTitle').fill('Låt 1');await page.locator('#masterArtist').fill('Chaoswrought');
   await page.locator('#masterProfile').selectOption('Vinyl');
   await page.locator('#master-bass_db').fill('-1.5');await page.locator('#master-bass_db').press('Tab');
   await page.locator('#masterProfile').selectOption('CD');
@@ -109,8 +117,11 @@ function wav(freq,amplitude=12000){
   await page.waitForFunction(old=>sid!==old&&selectedProfile().id==='Vinyl'&&mastering.title==='Låt 1'&&masterCache===null,previousSid);
   await page.waitForFunction(()=>document.querySelector('#masterTitle').value==='Låt 1');
   assert.equal(await page.locator('#master-bass_db').inputValue(),'-1.5');
+  await page.evaluate(()=>chooseWorkspace('editor'));
+  assert.ok(await page.locator('#tracks').isVisible());
   assert.equal(await page.getByLabel('Nivå Drums.wav',{exact:true}).inputValue(),'-3');
   assert.equal(await page.getByRole('button',{name:'Solo Drums.wav',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.evaluate(()=>chooseWorkspace('editor'));
   await page.getByRole('button',{name:'2 Guitar.wav',exact:true}).click();
   await page.evaluate(()=>{sel=[1,3];draw()});
   await page.locator('#panLeft').click();
@@ -127,7 +138,7 @@ function wav(freq,amplitude=12000){
   assert.equal(panProject.project.tracks['2 Guitar.wav'].edits.at(-1).pan_cycles,3);
   await page.screenshot({path:'target/ui-panning.png',fullPage:true});
   // Cut the stereo mix, leaving every source stem and its edit history untouched.
-  await page.locator('#mixPanel summary').click();
+  await page.evaluate(()=>chooseWorkspace('mix'));
   await page.getByLabel('Start (s)',{exact:true}).fill('1');await page.getByLabel('Slut (s)',{exact:true}).fill('3');
   await page.getByRole('button',{name:'Klipp bort markering',exact:true}).click();
   assert.equal(await page.evaluate(()=>mixAudio.duration),6);
@@ -155,7 +166,9 @@ function wav(freq,amplitude=12000){
   assert.equal(await page.locator('.brand p').textContent(),'Forge your sound');
   assert.equal(await page.locator('#masterProfile option[value="Kassett"]').textContent(),'Cassette');
   assert.equal(await page.evaluate(()=>mastering.profiles.Kassett.id),'Kassett');
+  await page.evaluate(()=>chooseWorkspace('editor'));
   assert.equal(await page.getByRole('button',{name:'Drums.wav',exact:true}).textContent(),'Drums.wav');
+  await page.evaluate(()=>chooseWorkspace('mix'));
   await page.getByRole('button',{name:'Om / About',exact:true}).click();await page.getByText('A local audio editor for stems, stereo mixing and mastering.',{exact:true}).waitFor();
   assert.ok((await page.locator('#about').textContent()).includes('master smith Völund'));
   await page.getByRole('button',{name:'Close',exact:true}).click();
@@ -168,7 +181,7 @@ function wav(freq,amplitude=12000){
   await page.getByRole('button',{name:'Behåll bara markering',exact:true}).click();assert.equal(await page.evaluate(()=>mixAudio.duration),5);
   // Album leveling: three complete songs, with an intentional quiet intro.
   const albumPaths=['01 Loud.wav','02 Quiet.wav','03 Intro.wav'].map((name,i)=>{const file=path.join(temp,name);fs.writeFileSync(file,wav(250,[12000,3000,1000][i]));return file});
-  await page.locator('#sidePanel').evaluate(el=>el.open=true);await page.locator('#sideFiles').setInputFiles(albumPaths);
+  await page.evaluate(()=>chooseWorkspace('album'));await page.locator('#sideFiles').setInputFiles(albumPaths);
   await page.waitForFunction(()=>sideTracks.length===3&&!saving);assert.equal(await page.locator('#albumMatch').isChecked(),true);
   await page.getByLabel('Matcha 03 Intro.wav',{exact:true}).uncheck();await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).fill('-1.5');await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).press('Tab');
   await page.getByLabel('Sida för 02 Quiet.wav',{exact:true}).selectOption('B');
@@ -189,7 +202,7 @@ function wav(freq,amplitude=12000){
   assert.equal(await page.getByLabel('Matcha 03 Intro.wav',{exact:true}).isChecked(),false);assert.equal(await page.getByLabel('Justering för 02 Quiet.wav',{exact:true}).inputValue(),'-1.5');assert.equal(await page.locator('#albumTarget').inputValue(),'-6');assert.equal(await page.evaluate(()=>sideDirty()),false);
   await page.locator('#albumAnalyze').click();await page.waitForFunction(()=>!!albumPlan&&!saving);await page.screenshot({path:'target/ui-album-swedish.png',fullPage:true});
   await page.locator('#language').selectOption('en');await page.getByRole('button',{name:'Analyze album levels',exact:true}).waitFor();await page.screenshot({path:'target/ui-album-english.png',fullPage:true});
-  await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
+  await page.locator('#language').selectOption('en');await page.reload();assert.equal(await page.locator('#language').inputValue(),'en');assert.ok(await page.locator('#startScreen').isVisible());await page.evaluate(()=>chooseWorkspace('editor'));await page.getByRole('button',{name:'Save project…',exact:true}).waitFor();
   assert.deepEqual(errors,[]);console.log('PASS: Windows editor UI, sorted stems, moving toolbar, metadata editing/clearing, muted WAV, themes');
  }finally{if(browser)await browser.close();app.kill();fs.rmSync(temp,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exitCode=1});

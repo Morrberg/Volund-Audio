@@ -1,6 +1,8 @@
 # Völund Audio – användarmanual
 
-**För version 0.8 · Smid fram ditt sound.**
+<p align="center"><img src="../assets/volund-emblem.jpg" width="360" alt="Vingad Völund-symbol i antik brons"></p>
+
+**För version 0.9 · Smid fram ditt sound.**
 
 Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkanten om du vill följa instruktionerna ord för ord. Gränssnittet kan också visas på engelska.
 
@@ -337,7 +339,7 @@ Båda projekttyperna använder ändelsen `.vcleaner` och innehåller originalens
 
 **Ctrl+S sparar det aktiva spåret som WAV, inte hela projektet.** Använd projektknapparna uttryckligen när du vill kunna fortsätta redigera senare. Att spara ett spår eller exportera en master kan därför lämna projektet med osparade ändringar.
 
-Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.8.
+Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.9.
 
 <a id="felsokning"></a>
 ## 15. Felsökning och begränsningar
@@ -386,3 +388,44 @@ Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar 
 | **Dither** | Ett mycket svagt brus som används vid slutlig heltalskvantisering för att minska kvantiseringsartefakter. |
 
 [Tillbaka till innehållet](#innehall) · [Till README](../README.md)
+
+
+## Trim Silence och De-clip (Tauri)
+
+Trim Silence finns i mixredigeringen. Tröskeln mäts som absolut samplingsnivå i dBFS i alla kanaler: en kanal med ljud räcker för att behålla partiet. Standard: −60 dBFS, minst 0,5 sekunders tystnad och 0,1 sekunds marginal runt ljud. Funktionen tar bort tysta partier och förkortar mixen; stem-original och deras inbördes synk bevaras. Helt tysta mixar behålls. Lyssna igenom resultatet, särskilt svaga efterklanger. Varje borttaget parti kan återställas med Ångra klipp. Klippen sparas i projektet och används vid mixexport/mastering.
+
+De-clip (spline) finns i spårverktygen och behandlar markeringen, eller hela valt spår om markering saknas. En kubisk Hermite-spline använder intakta grannsamplingar och deras lutningar för att uppskatta korta avplattade toppar. Den konservativa detekteringen kräver 2–64 på varandra följande samplingar med samma tecken och absolut nivå minst 0,9999. Långa skador, filkanter och osäkra rekonstruktioner lämnas orörda. När återskapade toppar överstiger full skala sänks hela behandlade partiet lika i alla kanaler till samplingspeak 0,999. Detta kan ge en nivåskillnad vid markeringens gräns; använd helst hela spåret. Det är inte en true-peak-limiter. Förhandslyssning och export använder motsvarande algoritm. Ångra återställer behandlingen och originalfiler skrivs aldrig över.
+
+Spline-metoden kan hjälpa kort hård digital klippning. Den reparerar inte generellt AI-artefakter, mjuk distorsion eller klippning som senare normaliserats till lägre nivå. Funktionen är en enkel egen implementation, inte RX:s algoritm.
+
+
+## Volymreglage, global analys och DC offset
+
+Varje spår har ett volymreglage mellan −60 och +12 dB bredvid sifferfältet. Båda ändrar samma sparade mixnivå. Under stemuppspelning ändras förstärkningen mjukt utan att uppspelningen startas om. Reglaget påverkar mixen och mastering; Spara valt spår sparar spårredigeringarna utan mixförstärkning.
+
+Analysera & föreslå visar global analys före och efter mastering: högsta True Peak i ett 100 ms-detektorintervall, högsta/lägsta ändliga korttids-LUFS över tre sekunder samt fördelning i 1 LU-breda intervall. LUFS läses var 100 ms, så fönstren överlappar: procenten beskriver mätfönster, inte oberoende låtpartier. Filer kortare än tre sekunder saknar korttidsvärden. Digital tystnad utan ändligt värde undantas från minimum. True Peak-filterfördröjningen är inte kompenserad; tiden är vägledande, inte ett exakt samplingsindex. Tiderna gäller den redigerade mixen efter klipp. Full mätserie, fördelning och kanalernas genomsnittliga DC-förskjutning ingår i Mastering-report.json.
+
+Ta bort DC offset · 2 Hz är valbart per masteringprofil och avstängt som standard även för äldre projekt. Ett normaliserat första ordningens högpassfilter med separat kanaltillstånd körs före EQ, kompressor och limiter i både förhandslyssning och masterexport. Inställningen sparas i projektet och rapportens profilinställningar. Vanlig mixexport och originalfiler påverkas inte. Filtret har insvängningstid och kan ändra toppnivån; förbättrat headroom är inte garanterat.
+
+
+## Arbetsområden och vinylrestaurering
+
+Startvyn erbjuder Spårredigering, Mixredigering, Mastering, Vinylrestaurering och Album & skivsidor. Bara valt arbetsområde visas. Välj arbetsområde återgår till startsidan utan att lämna projektet. Vyn är inte en ny session: importerade filer och inställningar följer med mellan arbetsområdena.
+
+Vinylrestaurering behandlar valt originalspår före spårredigeringar, mixning och mastering. Aktivera önskade funktioner och tryck Tillämpa & förbered lyssning. Samma Rust-behandling används vid förhandslyssning, export av valt spår, uppdelad export och mastering. Inställningarna sparas i projektet; vid återöppning förbereds lyssningen på nytt från originalljudet. Återställ restaurering tar bort hela restaureringsbehandlingen. Originalfilerna ändras aldrig.
+
+### Separera en mix i instrument och sång
+
+Om en gammal vinylutgåva har en obalanserad mix kan du först importera en ensam stereoinspelning och trycka **Separera inspelad mix**. Demucs-RS skapar fyra nya spår: trummor, bas, övrigt och sång. Völund mutar originalmixen och väljer sångspåret; justera sedan spårens nivåer i Mixredigering. Originalfilen finns kvar.
+
+Den valfria funktionen kräver att du själv startar separationen. Första gången visas en fråga och Demucs-RS hämtar modellvikterna från Hugging Face. Vikterna ingår inte i program- eller testpaketet och ljudfilen skickas inte till Hugging Face. Windows-testpaketet innehåller den separata motorn bredvid Völund. Motorn paketeras för närvarande inte för Linux eller macOS.
+
+Separeringen kan ta längre tid än vinylfiltren och använder datorns grafikprocessor när Demucs-RS har tillgång till den. Resultatet är en uppskattning av instrumenten; läckage och artefakter kan förekomma. Lyssna på varje stämma och jämför med originalmixen innan export.
+
+De-click använder en lokal impulsdetektor med cirka 2 ms omgivning och begränsad reparationsbredd. Markerade korta impulser ersätts med linjär interpolation. De-crackle är ett experimentellt, känsligare andra pass för kortare impulser, inte en fullständig bredbands- eller spektral knastermodell. Börja med känslighet 3; höga värden kan påverka musikattacker. Jämför Original och Restaurerat vid samma position. Lyssning i denna vy isolerar valt spår och Original spelar det importerade ljudet utan spårredigeringar.
+
+De-rumble är ett fjärde ordningens Butterworth-högpass (24 dB/oktav), uppbyggt av två sektioner med rätt skilda Q-värden. Välj 20 eller 25 Hz. Monobas filtrerar sidokanalen med ett andra ordningens högpass vid 120 Hz och bevarar mittkanalen. Det minskar lågfrekevent stereoinnehåll gradvis; det är ingen exakt gräns eller automatisk korrigering av azimut, polaritet eller kanalfördröjning.
+
+Hitta låtar använder högsta RMS-nivån i någon kanal över 20 ms-fönster. Standard: −45 dBFS och minst 1,5 sekunders paus. En markör placeras mitt i varje intern paus, med minst fem sekunder till filkanter och föregående markör. Inledande/slutlig tystnad skapar inte låtar. Lugn musik kan ge felaktiga förslag och knastriga pauser kan missas. Markörerna visas på vågformen, kan flyttas med sekundfält eller tas bort, och sparas i projektet. Lägg markör vid spelposition fungerar även vid pausad uppspelning.
+
+Exportera uppdelade låtar skapar en ZIP med numrerade 32-bit float WAV-filer och Tracks.json. Gränserna delar ljudet sammanhängande: inga samplingar eller pauser tas bort och ingen fade läggs till. Kontrollera markörerna och ljudnivån före leverans; floatformatet kan bevara toppar över 0 dBFS. Spara valt spår ger en restaurerad fil utan uppdelning. Tidslinjen behåller sin ursprungliga längd.

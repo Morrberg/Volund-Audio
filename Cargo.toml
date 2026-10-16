@@ -1,6 +1,6 @@
 [package]
 name = "volund-audio"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 description = "Völund Audio — local stem editor, mixing and mastering"
 
@@ -13,18 +13,26 @@ symphonia = { version = "0.5", features = ["mp3", "flac", "wav", "pcm"] }
 hound = "3"
 ebur128 = "0.1.10"
 lofty = "0.25"
-zip = { version = "0.6", default-features = false, features = ["deflate"] }
+zip = { version = "2.2.0", default-features = false, features = ["deflate"] }
 open = "5"
+tower-http = { version = "0.6", features = ["cors"] }
+bytes = "1"
+tokio-stream = "0.1"
+ureq = "2.12"
+dirs = "5"
+
+# Tauri is the desktop shell on Linux, Windows and macOS. FreeBSD keeps the
+# browser-based fallback until its WebKit/GTK packaging can be verified.
+[target.'cfg(not(target_os = "freebsd"))'.dependencies]
+tauri = { version = "2" }
+tauri-plugin-dialog = "2"
+rfd = "0.15"
 
 [profile.release]
 opt-level = 3
 lto = true
 strip = true
 
-[target.'cfg(target_os = "windows")'.dependencies]
-wry = "0.45"
-tao = "0.30"
-rfd = "0.15"
-
 [build-dependencies]
-winresource = "0.1"
+tauri-build = { version = "2" }
+image = { version = "0.25", default-features = false, features = ["png"] }
