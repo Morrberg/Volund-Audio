@@ -24,6 +24,7 @@ use std::{
     io::{Cursor, Read, Write},
     path::{Path as FsPath, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
+    process::Command,
 };
 use symphonia::core::{
     audio::SampleBuffer, codecs::DecoderOptions, formats::FormatOptions, io::MediaSourceStream,
@@ -120,6 +121,82 @@ async fn stem(State(root): State<PathBuf>, Path((sid, name)): Path<(String, Stri
 }
 
 /// Energibaserad aktivitetsdetektering + kontextregler. Returnerar förslag, ändrar inget.
+#[derive(Deserialize)]
+struct SeparateReq {
+    stem: String,
+    python: String,
+    #[serde(default = "default_demucs_device")]
+    device: String,
+}
+fn default_demucs_device() -> String { "cuda".into() }
+
+fn collect_wavs(dir: &FsPath, out: &mut Vec<PathBuf>) -> R<()> {
+    for entry in fs::read_dir(dir).map_err(bad)? {
+        let entry = entry.map_err(bad)?;
+        let path = entry.path();
+        if entry.file_type().map_err(bad)?.is_dir() {
+            collect_wavs(&path, out)?;
+        } else if ext(&path.to_string_lossy()) == "wav" {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+async fn separate(State(root): State<PathBuf>, Path(sid): Path<String>, Json(req): Json<SeparateReq>)
+    -> R<Json<Value>> {
+    let stems = tokio::task::spawn_blocking(move || -> R<Vec<String>> {
+        let dir = sess(&root, &sid)?;
+        let source_name = fname(&req.stem);
+        if !is_audio(&source_name) { return Err(bad("Välj en WAV-, MP3- eller FLAC-fil")); }
+        let source = dir.join(&source_name);
+        if !source.is_file() { return Err((StatusCode::NOT_FOUND, "källfilen finns inte i sessionen".into())); }
+        let python = req.python.trim();
+        if python.is_empty() { return Err(bad("Ange sökvägen till Python i Demucs-miljön")); }
+        let device = match req.device.as_str() { "cuda" => "cuda", "cpu" => "cpu", _ => return Err(bad("enheten måste vara cuda eller cpu")) };
+        let run = SystemTime::now().duration_since(UNIX_EPOCH).map_err(bad)?.as_millis();
+        let output_dir = dir.join(format!(".demucs-{run}"));
+        fs::create_dir_all(&output_dir).map_err(bad)?;
+        let result = Command::new(python)
+            .args(["-m", "demucs", "-d", device, "-n", "htdemucs", "--segment", "6",
+                "--shifts", "0", "--overlap", "0.25", "--float32", "--out"])
+            .arg(&output_dir)
+            .arg(&source)
+            .output()
+            .map_err(bad)?;
+        if !result.status.success() {
+            let _ = fs::remove_dir_all(&output_dir);
+            let details = String::from_utf8_lossy(if result.stderr.is_empty() { &result.stdout } else { &result.stderr });
+            return Err(bad(format!("Demucs misslyckades: {}", details.trim())));
+        }
+        let mut generated = Vec::new();
+        collect_wavs(&output_dir, &mut generated)?;
+        let kinds = ["drums", "bass", "other", "vocals"];
+        let mut sources = Vec::new();
+        for kind in kinds {
+            let found = generated.iter().find(|p| p.file_stem().and_then(|s| s.to_str()) == Some(kind))
+                .ok_or_else(|| bad(format!("Demucs avslutades men skapade inte filen {kind}.wav")))?;
+            sources.push((kind, found.clone()));
+        }
+        let source_stem = FsPath::new(&source_name).file_stem().unwrap_or_default().to_string_lossy();
+        let mut index = 1u32;
+        let prefix = loop {
+            let candidate = if index == 1 { format!("{source_stem}_demucs") } else { format!("{source_stem}_demucs_{index}") };
+            if kinds.iter().all(|kind| !dir.join(format!("{candidate}_{kind}.wav")).exists()) { break candidate; }
+            index += 1;
+        };
+        let mut names = Vec::new();
+        for (kind, path) in sources {
+            let name = format!("{prefix}_{kind}.wav");
+            fs::copy(path, dir.join(&name)).map_err(bad)?;
+            names.push(name);
+        }
+        fs::remove_dir_all(&output_dir).map_err(bad)?;
+        Ok(names)
+    }).await.map_err(bad)??;
+    Ok(Json(json!({"stems": stems})))
+}
+
 async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, String)>) -> R<Json<Value>> {
     let (y, sr, ch) = decode(&sess(&root, &sid)?.join(fname(&name))).map_err(bad)?;
     let m: Vec<f32> = y.chunks(ch).map(|c| c.iter().sum::<f32>() / ch as f32).collect();
@@ -195,6 +272,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/icon.svg", get(|| async { ([(header::CONTENT_TYPE, "image/svg+xml")], include_str!("../assets/icon.svg")) }))
         .route("/api/upload", post(upload))
         .route("/api/stem/:sid/:name", get(stem))
+        .route("/api/demucs/:sid", post(separate))
         .route("/api/analyze/:sid/:name", get(analyze))
         .route("/api/metadata/:sid/:name", get(inspect_metadata))
         .route("/api/export/:sid", post(export))
