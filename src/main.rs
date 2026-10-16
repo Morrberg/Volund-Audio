@@ -7,6 +7,7 @@ mod vinyl;
 mod global_analysis;
 mod mastering;
 mod album;
+mod demucs;
 #[cfg(not(target_os="freebsd"))]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(not(target_os="freebsd"))]
@@ -205,6 +206,7 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/export/:sid", post(export))
         .route("/api/vinyl/markers/:sid", post(vinyl::markers))
         .route("/api/vinyl/split/:sid", post(vinyl::split))
+        .route("/api/demucs/:sid", post(demucs::separate_route))
         .route("/api/save/:sid", post(save))
         .route("/api/project/:sid", post(save_project))
         .route("/api/master/analyze/:sid", post(mastering::analyze))
