@@ -408,7 +408,7 @@ function setWaveView(mode){
 }
 function draw(){
   if(!vocal)return;
-  $("#selectionReadout").textContent=sel?\x60${sel[0].toFixed(2)}–${sel[1].toFixed(2)} s · ${(sel[1]-sel[0]).toFixed(2)} s\x60:"Ingen markering";
+  $("#selectionReadout").textContent=sel?(sel[0].toFixed(2)+"–"+sel[1].toFixed(2)+" s · "+(sel[1]-sel[0]).toFixed(2)+" s"):"Ingen markering";
   const canvases=trackCanvases.size?[...trackCanvases]:[[vocal,wf]];
   for(const [name,c] of canvases){
     const g=c.getContext("2d"),W=c.width=c.clientWidth,H=c.height=c.clientHeight;
