@@ -102,7 +102,7 @@ await run(`sid='test';saving=false;names=['vinyl-side.wav'];vocal='vinyl-side.wa
 assert.equal(await run("$('#demucsRun').disabled"),false);
 await run(`names.push('second.wav');updateDemucsButton()`);
 assert.equal(await run("$('#demucsRun').disabled"),true);
-assert.ok(html.includes('<img src="/icon.svg" alt="Völund Audio-emblem">'));
+assert.match(html,/<img src="data:image\/svg\+xml;base64,[^"]+" alt="Völund Audio-emblem">/);
 assert.ok(html.includes('id="demucsPanel"'));
 assert.ok(html.includes('id="demucsFields"'));
 assert.ok(html.includes('volund-demucs-rs-consent-v1'));
