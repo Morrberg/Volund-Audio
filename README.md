@@ -18,10 +18,10 @@ En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namn
 | **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
 | **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
 | **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
-| **Vinylrestaurering** | Minska klick, knaster och rumble. Hitta tystnader som möjliga låtgränser, justera markörerna och exportera uppdelade spår. |
+| **Vinylrestaurering** | Minska klick, knaster och rumble. Hitta tystnader som möjliga låtgränser, justera markörerna och exportera uppdelade spår. Separera även en stereomix i trummor, bas, övrigt och sång med Demucs-RS. |
 | **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
 
-Ljudbehandlingen körs lokalt på datorn. Ingen molntjänst eller AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
+Ljudbehandlingen körs lokalt på datorn. Demucs är en separat, valfri funktion: Windows-testpaketet innehåller motorn men inte modellvikterna. När du själv startar separationen hämtas vikterna från Hugging Face; ljudet skickas inte dit. Motorn paketeras för närvarande bara med Windows-testpaketet. Ingen AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
 
 ## Kom igång
 
