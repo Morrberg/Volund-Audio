@@ -369,7 +369,7 @@ fn main() {
 
 fn project_zip(dir: &FsPath, project: &Value) -> R<Vec<u8>> {
     let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     z.start_file("project.json", options).map_err(bad)?;
     z.write_all(&serde_json::to_vec(project).map_err(bad)?).map_err(bad)?;
     for entry in fs::read_dir(dir).map_err(bad)? {
