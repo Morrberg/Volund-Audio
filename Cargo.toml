@@ -16,6 +16,10 @@ lofty = "0.25"
 zip = { version = "2.2.0", default-features = false, features = ["deflate"] }
 open = "5"
 tower-http = { version = "0.6", features = ["cors"] }
+bytes = "1"
+tokio-stream = "0.1"
+ureq = "2.12"
+dirs = "5"
 
 # Tauri is the desktop shell on Linux, Windows and macOS. FreeBSD keeps the
 # browser-based fallback until its WebKit/GTK packaging can be verified.
