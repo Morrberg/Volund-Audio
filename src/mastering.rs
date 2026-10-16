@@ -326,7 +326,7 @@ fn tagged(y:&[f32],p:&Profile,r:&Request)->Result<Vec<u8>,String> {
     crate::metadata::apply(FsPath::new(""),bytes,Some(&changes))
 }
 pub(crate) fn zip_entry(zip:&mut zip::ZipWriter<Cursor<Vec<u8>>>,name:&str,bytes:&[u8])->Result<(),String> {
-    zip.start_file(name,zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored)).map_err(|e|e.to_string())?;
+    zip.start_file(name,zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)).map_err(|e|e.to_string())?;
     zip.write_all(bytes).map_err(|e|e.to_string())
 }
 fn render_batch(dir:&FsPath,r:&Request)->Result<Vec<u8>,String> {
