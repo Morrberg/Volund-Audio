@@ -82,8 +82,8 @@ assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.e
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
 await run(`$('#albumMatch').checked=false;sideChanged()`);assert.equal(await run('sideDirty()'),true);assert.equal(await run(`$('#albumTarget').disabled`),true);
 
-await run(\`sid='test';names=['Original.wav'];bufs={'Original.wav':ctx.createBuffer(2,1000,100)};tracks={};metaInfo={};vocal=null;editedBuffers.clear();buildTracks();setVocal('Original.wav');$('#demucsPython').value='C:/demucs/.venv/Scripts/python.exe';$('#demucsDevice').value='cuda';\`);
-await run(\`fetch=async(url,options={})=>{if(url.startsWith('/api/demucs/')){globalThis.demucsRequest=JSON.parse(options.body);return {ok:true,json:async()=>({stems:['Original_demucs_drums.wav','Original_demucs_bass.wav','Original_demucs_other.wav','Original_demucs_vocals.wav']})}}return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)}};\`);
+await run(`sid='test';names=['Original.wav'];bufs={'Original.wav':ctx.createBuffer(2,1000,100)};tracks={};metaInfo={};vocal=null;editedBuffers.clear();buildTracks();setVocal('Original.wav');$('#demucsPython').value='C:/demucs/.venv/Scripts/python.exe';$('#demucsDevice').value='cuda';`);
+await run(`fetch=async(url,options={})=>{if(url.startsWith('/api/demucs/')){globalThis.demucsRequest=JSON.parse(options.body);return {ok:true,json:async()=>({stems:['Original_demucs_drums.wav','Original_demucs_bass.wav','Original_demucs_other.wav','Original_demucs_vocals.wav']})}}return {ok:true,arrayBuffer:async()=>new ArrayBuffer(8)}};`);
 await run('separateCurrent()');
 assert.equal(await run('names.length'),5);assert.equal(await run("tracks['Original.wav'].mute"),true);
 assert.equal(await run("names.includes('Original_demucs_vocals.wav')"),true);
