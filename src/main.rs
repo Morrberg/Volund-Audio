@@ -124,11 +124,23 @@ async fn stem(State(root): State<PathBuf>, Path((sid, name)): Path<(String, Stri
 #[derive(Deserialize)]
 struct SeparateReq {
     stem: String,
-    python: String,
-    #[serde(default = "default_demucs_device")]
-    device: String,
 }
-fn default_demucs_device() -> String { "cuda".into() }
+
+fn demucs_executable() -> PathBuf {
+    if let Some(path) = std::env::var_os("VOLUND_DEMUCS_PATH") {
+        return PathBuf::from(path);
+    }
+    let name = if cfg!(windows) { "demucs.exe" } else { "demucs" };
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let sibling = parent.join(name);
+            if sibling.is_file() {
+                return sibling;
+            }
+        }
+    }
+    PathBuf::from(name)
+}
 
 fn collect_wavs(dir: &FsPath, out: &mut Vec<PathBuf>) -> R<()> {
     for entry in fs::read_dir(dir).map_err(bad)? {
@@ -151,23 +163,20 @@ async fn separate(State(root): State<PathBuf>, Path(sid): Path<String>, Json(req
         if !is_audio(&source_name) { return Err(bad("Välj en WAV-, MP3- eller FLAC-fil")); }
         let source = dir.join(&source_name);
         if !source.is_file() { return Err((StatusCode::NOT_FOUND, "källfilen finns inte i sessionen".into())); }
-        let python = req.python.trim();
-        if python.is_empty() { return Err(bad("Ange sökvägen till Python i Demucs-miljön")); }
-        let device = match req.device.as_str() { "cuda" => "cuda", "cpu" => "cpu", _ => return Err(bad("enheten måste vara cuda eller cpu")) };
         let run = SystemTime::now().duration_since(UNIX_EPOCH).map_err(bad)?.as_millis();
         let output_dir = dir.join(format!(".demucs-{run}"));
         fs::create_dir_all(&output_dir).map_err(bad)?;
-        let result = Command::new(python)
-            .args(["-m", "demucs", "-d", device, "-n", "htdemucs", "--segment", "6",
-                "--shifts", "0", "--overlap", "0.25", "--float32", "--out"])
-            .arg(&output_dir)
+        let executable = demucs_executable();
+        let result = Command::new(&executable)
             .arg(&source)
+            .args(["--model", "htdemucs", "--output"])
+            .arg(&output_dir)
             .output()
-            .map_err(bad)?;
+            .map_err(|e| bad(format!("Kunde inte starta demucs-rs ({executable:?}): {e}. Kontrollera att demucs.exe ligger bredvid Völund Audio.")))?;
         if !result.status.success() {
             let _ = fs::remove_dir_all(&output_dir);
             let details = String::from_utf8_lossy(if result.stderr.is_empty() { &result.stdout } else { &result.stderr });
-            return Err(bad(format!("Demucs misslyckades: {}", details.trim())));
+            return Err(bad(format!("Demucs-RS misslyckades: {}", details.trim())));
         }
         let mut generated = Vec::new();
         collect_wavs(&output_dir, &mut generated)?;
@@ -175,7 +184,7 @@ async fn separate(State(root): State<PathBuf>, Path(sid): Path<String>, Json(req
         let mut sources = Vec::new();
         for kind in kinds {
             let found = generated.iter().find(|p| p.file_stem().and_then(|s| s.to_str()) == Some(kind))
-                .ok_or_else(|| bad(format!("Demucs avslutades men skapade inte filen {kind}.wav")))?;
+                .ok_or_else(|| bad(format!("Demucs-RS avslutades men skapade inte filen {kind}.wav")))?;
             sources.push((kind, found.clone()));
         }
         let source_stem = FsPath::new(&source_name).file_stem().unwrap_or_default().to_string_lossy();
