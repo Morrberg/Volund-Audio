@@ -6,7 +6,7 @@
 
 En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namnet kommer från mästersmeden Völund: här smider vi låtar.
 
-**Version 0.9.0 · Tauri-port under test för Windows, macOS och Linux · Svenskt och engelskt gränssnitt · MIT-licens**
+**Version 0.95 · Tauri-app för Windows, macOS och Linux · VST3-stöd under test · Svenskt och engelskt gränssnitt · MIT-licens**
 
 [Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Vinylrestaurering och låtuppdelning](docs/MANUAL.sv.md#arbetsomraden-och-vinylrestaurering) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
 
@@ -16,16 +16,18 @@ En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namn
 |---|---|
 | **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |
 | **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
-| **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, limiter, LUFS/true-peak-mätning och före/efter-lyssning. |
+| **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, valfri VST3-effekt före limiter och dither, LUFS/true-peak-mätning och före/efter-lyssning. |
 | **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
 | **Vinylrestaurering** | Minska klick, knaster och rumble. Hitta tystnader som möjliga låtgränser, justera markörerna och exportera uppdelade spår. Separera även en stereomix i trummor, bas, övrigt och sång med Demucs-RS. |
 | **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
+
+VST3-stödet är experimentellt i 0.95. Völund skannar standardmapparna vid start, och valda effekter körs offline vid förhandslyssning och export före den slutliga limitern och ditheringen. Pluginets eget fönster öppnas separat. Bypass går att slå på vid före/efter-jämförelse, och plugininställningar sparas med masteringprofilen i projektet. VST3-effekter används inte i realtidsuppspelning; plugin utan eget GUI kan inte öppnas i ett pluginfönster. FreeBSD saknar VST3-värden.
 
 Ljudbehandlingen körs lokalt på datorn. Demucs är en separat, valfri funktion: Windows-testpaketet innehåller motorn men inte modellvikterna. När du själv startar separationen hämtas vikterna från Hugging Face; ljudet skickas inte dit. Motorn paketeras för närvarande bara med Windows-testpaketet. Ingen AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
 
 ## Kom igång
 
-1. Öppna [GitHub Actions](https://github.com/Morrberg/Vocal-cleaner/actions) och välj en lyckad körning för den version du vill använda.
+1. För en befintlig Windows-testversion: öppna [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions) och välj en lyckad körning. Ingen ny 0.95-Windows-build finns uppladdad medan den automatiska byggningen är pausad.
 2. Hämta **Volund-Audio-Windows** under **Artifacts** och packa upp ZIP-filen. GitHub kan kräva inloggning för nedladdningen.
 3. Starta `volund-audio.exe`. Windows-versionen använder ett eget programfönster med inbäddad webbvy och kräver [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
 4. Välj **Öppna stems / projekt** och öppna stems för **en låt**, exempelvis Sunos ZIP-fil.
@@ -49,7 +51,7 @@ Albumdelen använder kompletta låtar som underlag. Att öppna flera låtar som 
 | **Spara valt spår…** / **Ctrl+S** | En redigerad WAV av det aktiva spåret. |
 | **Spara redigerad mix…** | En stereomix före mastering. |
 | **Spara aktuell profil som WAV…** / **Spara valda versioner som ZIP…** | Färdiga masterfiler; ZIP-exporten innehåller även en mätrapport. |
-| **Spara projekt…** | Originalljud, stemredigeringar, mixklipp, mixnivåer och masteringinställningar i en `.vcleaner`-fil. |
+| **Spara projekt…** | Originalljud, stemredigeringar, mixklipp, mixnivåer, masteringinställningar och sparade VST3-inställningar i en `.vcleaner`-fil. |
 | **Spara sidprojekt…** | Albumets originallåtar, ordning, sidor och nivåmatchningsinställningar i en `.vcleaner`-fil. |
 
 **Att exportera ljud sparar inte projektet.** Programmet har ingen automatisk projektsparning eller kraschåterställning. Originalfilerna på datorn skrivs inte över av redigeringarna; välj ett nytt filnamn när du exporterar.
@@ -68,20 +70,21 @@ Profilernas standardvärden är utgångspunkter, inte garantier för leverans ti
 
 ## Bygga och testa
 
-Installera Rust och Node.js för respektive kontroll:
+Installera Rust och Node.js 24 för respektive kontroll:
 
 ```sh
 cargo test
 node tests/editor.test.cjs
+node tests/repair.test.cjs
 cargo build --release
 ```
 
 `cargo build --release` bygger Tauri-skrivbordsappen för Windows, Linux och macOS. Linux kräver Tauri/WebKitGTK-systempaketen som anges i GitHub Actions-flödet. FreeBSD använder webbläsarfallbacken tills skrivbordsbygget har verifierats där.
 
-[GitHub Actions-flödet](.github/workflows/rust.yml) kör Rust-tester på Linux och Windows samt gränssnitts- och exporttester i Microsoft Edge på Windows. Flödet sparar även skärmbilder som artifact. Det inbäddade Windows-fönstret och de vanliga spardialogerna behöver kompletteras med manuell provkörning.
+GitHub Actions-flödet finns i [.github/workflows/rust.yml](.github/workflows/rust.yml). Den automatiska Windows-byggningen är för närvarande pausad medan 0.95 förbereds. Kör Windows-testpaketet först när den manuella provkörningen av skrivbordsfönstret, VST3-laddning och pluginfönster är redo.
 
 ## Projektet
 
-Programmet hette tidigare **Vocal Cleaner**. Äldre `.vcleaner`-projekt stöds fortfarande. GitHub-repot behåller tills vidare namnet `Vocal-cleaner`.
+Programmet hette tidigare **Vocal Cleaner**. Äldre `.vcleaner`-projekt stöds fortfarande. GitHub-repot heter [Volund-Audio](https://github.com/Morrberg/Volund-Audio).
 
 Koden omfattas av [MIT-licensen](LICENSE). Programikonen finns i `icons/icon.png` och `icons/icon.ico`; den större Völund-illustrationen finns i `assets/volund-emblem.jpg`.
