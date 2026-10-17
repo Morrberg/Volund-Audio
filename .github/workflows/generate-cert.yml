@@ -1,0 +1,29 @@
+name: Generera Certifikat
+
+on:
+  workflow_dispatch: # Gör att du kan starta det manuellt med en knapp
+
+jobs:
+  create-cert:
+    runs-on: windows-latest
+    steps:
+      - name: Skapa och konvertera certifikat
+        shell: powershell
+        run: |
+          # 1. Skapa certifikatet på GitHubs moderna maskin
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Volund Audio" -NotBefore (Get-Date) -NotAfter (Get-Date).AddYears(5)
+          
+          # 2. Sätt ett tillfälligt lösenord för exporten (detta används bara här)
+          $password = ConvertTo-SecureString "GithubTempPassword123" -AsPlainText -Force
+          
+          # 3. Exportera till en temporär PFX-fil
+          $pfxPath = "${{ github.workspace }}\temp.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password
+          
+          # 4. Gör om till Base64-sträng
+          $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfxPath))
+          
+          # 5. Skriv ut texten i loggen så du kan kopiera den
+          Write-Output "--- KOPIERA TEXTEN NEDAN ---"
+          Write-Output $base64
+          Write-Output "--- SLUT PÅ TEXT ---"
