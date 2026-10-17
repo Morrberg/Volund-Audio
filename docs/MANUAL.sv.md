@@ -155,7 +155,7 @@ Varje spår har en nivåkontroll i dB, **Mute** och **Solo**.
 
 **Exempel:** sänk sången till −2 dB om den ligger för långt fram och gitarrerna till −1 dB om mixen blir för tät. Värdena är bara exempel; lyssna på din egen låt.
 
-Nivå, mute och solo följer med till stereomixen och mastering. Kontrollera därför att inga tillfälliga soloval finns kvar före export. **Spara valt spår…** använder spårets redigeringar, men bakar inte in dessa mixnivåer eller mute/solo.
+Nivå, mute och solo följer med till stereomixen och mastering. Kontrollera därför att inga tillfälliga soloval finns kvar före export. **Exportera valt spår som WAV…** använder spårets redigeringar, men bakar inte in dessa mixnivåer eller mute/solo.
 
 <a id="klippa"></a>
 ## 8. Klippa och trimma stereomixen
@@ -337,7 +337,7 @@ Använd respektive vinyl- eller kassettversion som underlag och stäm av format 
 
 Båda projekttyperna använder ändelsen `.vcleaner` och innehåller originalens ljuddata. De kan därför bli stora. Äldre projekt från Vocal Cleaner stöds fortfarande.
 
-**Ctrl+S sparar det aktiva spåret som WAV, inte hela projektet.** Använd projektknapparna uttryckligen när du vill kunna fortsätta redigera senare. Att spara ett spår eller exportera en master kan därför lämna projektet med osparade ändringar.
+**Ctrl+S sparar projektet; Ctrl+Shift+E exporterar det aktiva spåret som WAV.** Ctrl+S öppnar dialogrutan där du väljer var projektfilen ska sparas. Du kan också använda projektknapparna. Att exportera ett spår eller en master sparar inte projektets redigeringar och kan därför lämna osparade projektändringar.
 
 Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.9.
 
@@ -350,7 +350,7 @@ Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar 
 | Ett parti blir tyst men låten blir inte kortare | **Tysta** behåller tiden. Använd mixvyns **Klipp bort markering** för att korta hela låten. |
 | Mixvågformen är tom efter en ändring | Välj **Uppdatera mix**. Tidigare mixunderlag ogiltigförklaras när ljud eller profil ändras. |
 | Före/efter-knapparna i mastering är inaktiva | Välj **Skapa förhandslyssning** igen efter ändringar. |
-| Den exporterade mixen saknar dina mixnivåer | Kontrollera att du exporterade mix eller master, inte **Spara valt spår…**. |
+| Den exporterade mixen saknar dina mixnivåer | Kontrollera att du exporterade mix eller master, inte **Exportera valt spår som WAV…**. |
 | Ett LUFS-mål nås inte | Läs mätvärden och varningar. Toppgräns och maximal nivåhöjning kan begränsa resultatet. |
 | Ett undantaget intro sänks ändå | Albumets gemensamma säkerhetssänkning gäller även undantagna låtar. |
 | En panorering påverkar flera ljud | De ligger i samma stem och tidsområde. Verktyget flyttar allt ljud i den markeringen. |
@@ -401,7 +401,7 @@ Spline-metoden kan hjälpa kort hård digital klippning. Den reparerar inte gene
 
 ## Volymreglage, global analys och DC offset
 
-Varje spår har ett volymreglage mellan −60 och +12 dB bredvid sifferfältet. Båda ändrar samma sparade mixnivå. Under stemuppspelning ändras förstärkningen mjukt utan att uppspelningen startas om. Reglaget påverkar mixen och mastering; Spara valt spår sparar spårredigeringarna utan mixförstärkning.
+Varje spår har ett volymreglage mellan −60 och +12 dB bredvid sifferfältet. Båda ändrar samma sparade mixnivå. Under stemuppspelning ändras förstärkningen mjukt utan att uppspelningen startas om. Reglaget påverkar mixen och mastering; Exportera valt spår som WAV sparar spårredigeringarna utan mixförstärkning.
 
 Analysera & föreslå visar global analys före och efter mastering: högsta True Peak i ett 100 ms-detektorintervall, högsta/lägsta ändliga korttids-LUFS över tre sekunder samt fördelning i 1 LU-breda intervall. LUFS läses var 100 ms, så fönstren överlappar: procenten beskriver mätfönster, inte oberoende låtpartier. Filer kortare än tre sekunder saknar korttidsvärden. Digital tystnad utan ändligt värde undantas från minimum. True Peak-filterfördröjningen är inte kompenserad; tiden är vägledande, inte ett exakt samplingsindex. Tiderna gäller den redigerade mixen efter klipp. Full mätserie, fördelning och kanalernas genomsnittliga DC-förskjutning ingår i Mastering-report.json.
 
@@ -428,4 +428,4 @@ De-rumble är ett fjärde ordningens Butterworth-högpass (24 dB/oktav), uppbygg
 
 Hitta låtar använder högsta RMS-nivån i någon kanal över 20 ms-fönster. Standard: −45 dBFS och minst 1,5 sekunders paus. En markör placeras mitt i varje intern paus, med minst fem sekunder till filkanter och föregående markör. Inledande/slutlig tystnad skapar inte låtar. Lugn musik kan ge felaktiga förslag och knastriga pauser kan missas. Markörerna visas på vågformen, kan flyttas med sekundfält eller tas bort, och sparas i projektet. Lägg markör vid spelposition fungerar även vid pausad uppspelning.
 
-Exportera uppdelade låtar skapar en ZIP med numrerade 32-bit float WAV-filer och Tracks.json. Gränserna delar ljudet sammanhängande: inga samplingar eller pauser tas bort och ingen fade läggs till. Kontrollera markörerna och ljudnivån före leverans; floatformatet kan bevara toppar över 0 dBFS. Spara valt spår ger en restaurerad fil utan uppdelning. Tidslinjen behåller sin ursprungliga längd.
+Exportera uppdelade låtar skapar en ZIP med numrerade 32-bit float WAV-filer och Tracks.json. Gränserna delar ljudet sammanhängande: inga samplingar eller pauser tas bort och ingen fade läggs till. Kontrollera markörerna och ljudnivån före leverans; floatformatet kan bevara toppar över 0 dBFS. Exportera valt spår som WAV ger en restaurerad fil utan uppdelning. Tidslinjen behåller sin ursprungliga längd.
