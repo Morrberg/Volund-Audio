@@ -18,6 +18,7 @@ Völund Audio is a local desktop application for editing stems, mixing, masterin
 |---|---|
 | **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then mute, fade, or pan selected regions. Undo and redo edits per track. |
 | **Mixing** | Adjust track levels, mute, or solo tracks. Trim the combined stereo mix before mastering. |
+| **Easy Podcast** | Work with one microphone WAV per voice on a shared timeline. Cut or mute the same section across the whole mix, add an optional opening and closing jingle, then continue to mastering. |
 | **Mastering** | Use separate Spotify, Vinyl, CD, and Cassette profiles. Apply EQ, compression, an optional VST3 effect, limiting, and dithering. Compare before and after, and view LUFS and true-peak measurements. |
 | **Albums** | Loudness-match finished tracks, make individual adjustments, and export tracks or side A/B track lists. |
 | **Vinyl restoration** | Reduce clicks, crackle, and rumble. Detect possible track boundaries, adjust markers, and export split tracks. Optionally separate a stereo mix into drums, bass, other, and vocals with Demucs-RS. |
@@ -66,6 +67,14 @@ The Windows test build is unsigned, so SmartScreen may warn you. The [Swedish ma
 
 The album section works with finished songs. Opening several songs as stems in the main view would place them on top of each other in one mix.
 
+## Easy Podcast mode
+
+Use **Easy Podcast** for a simple spoken-word workflow. Export one WAV per microphone from the same recording session. Keep the same start point and full recording length on every file, including silence at the beginning. Völund keeps these tracks on one timeline; this mode does not move individual tracks to correct different start times.
+
+Use the shared mix waveform to select a passage, then cut or mute that passage across all voices. Cutting shortens the whole programme while keeping voices together. Muting leaves the timeline length unchanged. Each track also has simple mute and listen-to-this-voice controls.
+
+Optional opening and closing jingles can be loaded as mono or stereo WAV files (up to 30 seconds and 12 MB each). They are stored in the <code>.vcleaner</code> project and included in preview, mastering, and exports. Save the project separately from exporting the finished episode.
+
 ## Saving and exporting
 
 | Control | Result |
@@ -73,7 +82,7 @@ The album section works with finished songs. Opening several songs as stems in t
 | **Save selected track…** / **Ctrl+S** | A WAV file of the edited active track. |
 | **Save edited mix…** | A stereo mix before mastering. |
 | **Save current profile as WAV…** / **Save selected versions as ZIP…** | Finished master files; the ZIP also contains a measurement report. |
-| **Save project…** | Source audio, stem edits, mix trims and levels, mastering settings, and saved VST3 settings in a `.vcleaner` project file. |
+| **Save project…** | Source audio, stem edits, mix trims and levels, mastering settings, optional podcast jingles, and saved VST3 settings in a `.vcleaner` project file. |
 | **Save side project…** | The album's source tracks, order, sides, and level-matching settings in a `.vcleaner` project file. |
 
 **Exporting audio does not save the project.** There is no automatic project saving or crash recovery. Edits do not overwrite the source files; choose a new filename when exporting.

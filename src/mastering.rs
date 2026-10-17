@@ -1,6 +1,7 @@
 //! Deterministic offline stereo mastering. Every profile starts from the unmastered mix.
 use crate::{bad, decode, fname, sess, Edit, R};
 use axum::{extract::{Path, State}, http::{header, HeaderName}, response::{IntoResponse, Response}, Json};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use ebur128::{EbuR128, Mode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -52,6 +53,12 @@ pub struct Request {
     pub tracks: Vec<MixTrack>,
     pub profiles: Vec<Profile>,
     #[serde(default)] pub mix_edits: Vec<MixEdit>,
+    #[serde(default)] pub jingles: Jingles,
+}
+#[derive(Clone, Deserialize, Serialize, Default)]
+pub struct Jingles {
+    #[serde(default)] pub intro: Option<String>,
+    #[serde(default)] pub outro: Option<String>,
 }
 /// Times refer to the current mix after all preceding operations.
 #[derive(Clone, Deserialize, Serialize)]
@@ -60,10 +67,23 @@ fn edit_mix(mut audio: Vec<f32>, sr: u32, edits: &[MixEdit]) -> Result<Vec<f32>,
     if edits.len()>1000 {return Err("Too many mix edits".into())}
     for e in edits {
         let frames=audio.len()/2;
-        if !e.start.is_finite() || !e.end.is_finite() || e.start<0. || e.end<=e.start || e.end>frames as f64/sr as f64+1.0/sr as f64 || !["cut","keep"].contains(&e.kind.as_str()) {return Err("Invalid mix selection".into())}
+        if !e.start.is_finite() || !e.end.is_finite() || e.start<0. || e.end<=e.start || e.end>frames as f64/sr as f64+1.0/sr as f64 || !["cut","keep","mute"].contains(&e.kind.as_str()) {return Err("Invalid mix selection".into())}
         let a=((e.start*sr as f64).round() as usize).min(frames);
         let b=((e.end*sr as f64).round() as usize).min(frames);
         if b<=a || (e.kind=="cut" && b-a==frames) {return Err("The mix must contain audio".into())}
+        if e.kind=="mute" {
+            let edge=(sr as usize/200).min(a).min(frames-b);
+            for i in 0..edge {
+                let fade_out=1.0-(i+1) as f32/edge as f32;
+                let fade_in=i as f32/edge as f32;
+                for c in 0..2 {
+                    audio[(a-edge+i)*2+c]*=fade_out;
+                    audio[(b+i)*2+c]*=fade_in;
+                }
+            }
+            audio[a*2..b*2].fill(0.0);
+            continue
+        }
         let joins=if e.kind=="cut" {audio.drain(a*2..b*2);vec![a]} else {audio=audio[a*2..b*2].to_vec();vec![0,audio.len()/2]};
         // Short fades preserve exact timing; no overlapping or shortening at joins.
         let count=audio.len()/2;let edge=(sr as usize/200).min(count/2);
@@ -74,7 +94,40 @@ fn edit_mix(mut audio: Vec<f32>, sr: u32, edits: &[MixEdit]) -> Result<Vec<f32>,
     }
     Ok(audio)
 }
-fn request_mix(dir:&FsPath,r:&Request,sr:u32)->Result<Vec<f32>,String>{edit_mix(mix(dir,&r.tracks,sr)?,sr,&r.mix_edits)}
+fn decode_jingle(encoded:Option<&str>,sr:u32)->Result<Vec<f32>,String>{
+    let Some(encoded)=encoded else{return Ok(Vec::new())};
+    if encoded.len()>16*1024*1024{return Err("Jingle WAV is larger than 12 MB".into())}
+    let bytes=BASE64.decode(encoded).map_err(|_|"Invalid jingle data")?;
+    let mut reader=hound::WavReader::new(Cursor::new(bytes)).map_err(|e|format!("Could not read jingle WAV: {e}"))?;
+    let spec=reader.spec();
+    if !(1..=2).contains(&spec.channels) || !(8000..=192000).contains(&spec.sample_rate) ||
+        ![8,16,24,32].contains(&spec.bits_per_sample) ||
+        (spec.sample_format==hound::SampleFormat::Float && spec.bits_per_sample!=32) {
+        return Err("Jingle must be mono or stereo PCM/32-bit float WAV at 8–192 kHz".into())
+    }
+    if reader.duration()==0 || reader.duration()>spec.sample_rate.saturating_mul(30) {
+        return Err("Jingle must be between 0 and 30 seconds".into())
+    }
+    let samples=if spec.sample_format==hound::SampleFormat::Float {
+        reader.samples::<f32>().collect::<Result<Vec<_>,_>>().map_err(|e|format!("Invalid jingle samples: {e}"))?
+    } else {
+        let scale=2f32.powi(spec.bits_per_sample as i32-1);
+        reader.samples::<i32>().map(|s|s.map(|v|v as f32/scale)).collect::<Result<Vec<_>,_>>().map_err(|e|format!("Invalid jingle samples: {e}"))?
+    };
+    if samples.iter().any(|v|!v.is_finite()){return Err("Jingle contains invalid samples".into())}
+    let stereo=if spec.channels==1 {samples.into_iter().flat_map(|v|[v,v]).collect()} else {samples};
+    stereo_resample(&stereo,spec.sample_rate,2,sr)
+}
+fn assemble_jingles(audio:Vec<f32>,intro:Vec<f32>,outro:Vec<f32>)->Vec<f32>{
+    let mut out=Vec::with_capacity(intro.len()+audio.len()+outro.len());
+    out.extend(intro);out.extend(audio);out.extend(outro);out
+}
+fn request_mix(dir:&FsPath,r:&Request,sr:u32)->Result<Vec<f32>,String>{
+    let audio=mix(dir,&r.tracks,sr)?;
+    let intro=decode_jingle(r.jingles.intro.as_deref(),sr)?;
+    let outro=decode_jingle(r.jingles.outro.as_deref(),sr)?;
+    edit_mix(assemble_jingles(audio,intro,outro),sr,&r.mix_edits)
+}
 #[derive(Clone, Serialize)]
 pub struct Metrics {
     pub lufs: Option<f64>,
@@ -438,6 +491,19 @@ mod tests {
     use super::*;
     fn profile(id:&str)->Profile {Profile{id:id.into(),sample_rate:44100,bits:if id=="CD"{16}else{24},target_lufs:Some(-14.),ceiling_db:-1.,bass_db:0.,mid_db:0.,treble_db:0.,compression:15.,mono_bass_hz:0.,highpass_hz:0.,limiter:true,dc_block:false,vst3:None}}
     fn sine(sr:u32,seconds:f64,frequency:f64,amplitude:f64)->Vec<f32>{(0..(sr as f64*seconds) as usize).flat_map(|i|{let v=(amplitude*(2.*PI*frequency*i as f64/sr as f64).sin()) as f32;[v,v]}).collect()}
+    #[test]fn jingle_audio_wraps_mix_in_requested_order(){
+        let audio=assemble_jingles(vec![0.2,0.2],vec![0.1,0.1],vec![0.3,0.3]);
+        assert_eq!(audio,vec![0.1,0.1,0.2,0.2,0.3,0.3]);
+    }
+    #[test]fn mute_mix_edit_silences_selection_without_shifting_timeline(){
+        let source:Vec<f32>=(0..1000).flat_map(|_|[0.5,0.25]).collect();
+        let out=edit_mix(source.clone(),1000,&[MixEdit{kind:"mute".into(),start:0.2,end:0.4}]).unwrap();
+        assert_eq!(out.len(),source.len());
+        assert!(out[400..800].iter().all(|sample|*sample==0.0));
+        assert!(out[390]<source[390]&&out[390]>0.0);
+        assert!(out[800]<source[800]&&out[800]>=0.0);
+        assert_eq!(out[0],source[0]);
+    }
     #[test]fn loudness_reference_and_silence(){let m=measure(&sine(48000,5.,1000.,0.1),48000).unwrap();assert!((m.lufs.unwrap()+20.).abs()<0.4);assert!((m.true_peak_db.unwrap()+20.).abs()<0.1);assert!(measure(&vec![0.;48000],48000).unwrap().lufs.is_none());}
     #[test]fn profiles_reach_target_and_respect_true_peak(){let source=sine(44100,4.,1000.,0.05);for id in ["Spotify","CD","Vinyl","Kassett"]{let p=profile(id);let(y,r)=process(&source,&p).unwrap();assert_eq!(y.len(),source.len());assert!((r.output.lufs.unwrap()+14.).abs()<0.3);assert!(r.output.true_peak_db.unwrap()<=p.ceiling_db);let data=wav(&y,p.sample_rate,p.bits,false).unwrap();let reader=hound::WavReader::new(Cursor::new(data)).unwrap();assert_eq!(reader.spec().bits_per_sample,p.bits);assert_eq!(reader.spec().sample_rate,p.sample_rate);}}
     #[test]fn limiter_handles_impulses_and_high_frequency(){let mut y=sine(44100,3.,18000.,1.4);y[1000]=5.;y[1001]=-4.;let mut p=profile("Spotify");p.target_lufs=None;p.compression=0.;let(_,r)=process(&y,&p).unwrap();assert!(r.output.true_peak_db.unwrap()<=-1.);assert!(r.limiter_reduction_db>0.);}
