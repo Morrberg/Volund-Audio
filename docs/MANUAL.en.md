@@ -158,7 +158,7 @@ Each track has a level control in dB, **Mute**, and **Solo**.
 
 **Example:** lower the vocals to −2 dB if they sit too far forward, or lower the guitars to −1 dB if the mix feels too dense. These are examples; listen to your own song.
 
-Level, mute, and solo settings carry through to the stereo mix and mastering. Check that no temporary solo settings remain before exporting. **Save selected track…** uses the track edits, but does not include these mix levels or mute/solo settings.
+Level, mute, and solo settings carry through to the stereo mix and mastering. Check that no temporary solo settings remain before exporting. **Export selected track as WAV…** uses the track edits, but does not include these mix levels or mute/solo settings.
 
 <a id="trimming"></a>
 ## 8. Trimming the stereo mix
@@ -340,7 +340,7 @@ Use the relevant Vinyl or Cassette version as the source and confirm format and 
 
 Both project types use the `.vcleaner` extension and contain the source audio, so they can be large. Older projects from Vocal Cleaner are still supported.
 
-**Ctrl+S saves the active track as a WAV; it does not save the whole project.** Use the project buttons explicitly when you want to continue editing later. Saving a track or exporting a master can leave unsaved project changes.
+**Ctrl+S saves the project; Ctrl+Shift+E exports the active track as WAV.** Ctrl+S opens the dialog where you choose where to save the project file. You can also use the project buttons. Exporting a track or master does not save the project's edits and can therefore leave unsaved project changes.
 
 Canceling a save dialog keeps your work in the app. The close warning does not save anything automatically. Version 0.9 has no automatic project saving or crash recovery.
 
@@ -353,7 +353,7 @@ Canceling a save dialog keeps your work in the app. The close warning does not s
 | A region is silent but the song is not shorter | **Mute** preserves the timing. Use **Remove selection** in the mix view to shorten the full song. |
 | The mix waveform is empty after a change | Choose **Refresh mix**. Earlier mix data is invalidated when audio or the profile changes. |
 | Mastering Before/After buttons are inactive | Choose **Create preview** again after making changes. |
-| The exported mix does not include your mix levels | Check that you exported a mix or master, not **Save selected track…**. |
+| The exported mix does not include your mix levels | Check that you exported a mix or master, not **Export selected track as WAV…**. |
 | A LUFS target is not reached | Read the measurements and warnings. The peak limit and maximum level increase may constrain the result. |
 | An excluded intro is still turned down | The album's shared safety reduction also applies to excluded songs. |
 | Panning affects several sounds | They are in the same stem and time range. The tool moves all audio in that selection. |
