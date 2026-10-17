@@ -9,6 +9,7 @@ mod mastering;
 mod album;
 mod demucs;
 mod vst;
+mod audio_id;
 #[cfg(not(target_os="freebsd"))]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(not(target_os="freebsd"))]
@@ -206,6 +207,8 @@ async fn serve(ready: std::sync::mpsc::Sender<String>) {
         .route("/api/metadata/:sid/:name", get(inspect_metadata))
         .route("/api/export/:sid", post(export))
         .route("/api/vinyl/markers/:sid", post(vinyl::markers))
+        .route("/api/vinyl/identify/:sid", post(audio_id::identify))
+        .route("/api/vinyl/release/:mbid", get(audio_id::release))
         .route("/api/vinyl/split/:sid", post(vinyl::split))
         .route("/api/demucs/:sid", post(demucs::separate_route))
         .route("/api/save/:sid", post(save))
