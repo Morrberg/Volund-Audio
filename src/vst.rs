@@ -148,15 +148,19 @@ thread_local! {
 fn start_editor_pump(app: tauri::AppHandle) {
     static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if STARTED.swap(true, std::sync::atomic::Ordering::AcqRel) { return; }
+    let pending = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_millis(16));
+        if pending.compare_exchange(false, true, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_err() { continue; }
+        let pending_callback = pending.clone();
         let app = app.clone();
-        if app.run_on_main_thread(|| {
+        if app.run_on_main_thread(move || {
             OPEN_PLUGINS.with(|open| open.borrow_mut().retain(|_, (_, window)| {
                 let _ = window.service_platform_events();
                 if window.closed_by_user() { window.close(); }
                 true
             }));
+            pending_callback.store(false, std::sync::atomic::Ordering::Release);
         }).is_err() { break; }
     });
 }
@@ -166,7 +170,7 @@ fn start_editor_pump(app: tauri::AppHandle) {
 pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state: Option<String>, profile_id: String) -> Result<(), String> {
     use std::sync::{Arc, Mutex, mpsc};
     use tauri::Manager;
-    use vst3_host::{Vst3Host, window::PluginWindowBuilder};
+    use vst3_host::Vst3Host;
     let path = approved_plugin_path(&path)?;
     if !["Spotify", "Vinyl", "CD", "Kassett"].contains(&profile_id.as_str()) { return Err("Okänd masteringprofil".into()); }
     let key = format!("{profile_id}\0{}", path.to_string_lossy());
@@ -188,7 +192,8 @@ pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state:
             if let Some(bytes) = decoded_state { plugin.load_state(&bytes).map_err(|e|format!("Kunde inte återställa VST3-inställningarna: {e}"))?; }
             if !plugin.has_editor() { return Err("Pluginet har inget eget GUI-fönster".into()); }
             let plugin = Arc::new(Mutex::new(plugin));
-            let window = PluginWindowBuilder::new(plugin.clone()).open_standalone().map_err(|e|e.to_string())?;
+            let mut window = vst3_host::PluginWindow::new(plugin.clone());
+            window.open().map_err(|e|e.to_string())?;
             OPEN_PLUGINS.with(|open| { open.borrow_mut().insert(key, (plugin, window)); });
             start_editor_pump(pump_app);
             Ok(())
