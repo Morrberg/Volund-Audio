@@ -1,76 +1,100 @@
-<p align="center"><img src="assets/volund-emblem.jpg" width="300" alt="Völund Audio: vingat Völund-symbol i antik brons"></p>
+<p align="center"><img src="assets/volund-emblem.jpg" width="300" alt="Völund Audio emblem: a winged symbol in antique bronze"></p>
 
 # Völund Audio
 
-**Smid fram ditt sound.**
+**Forge your sound.**
 
-En lokal ljudeditor för stems, stereomix, mastering och vinylrestaurering. Namnet kommer från mästersmeden Völund: här smider vi låtar.
+Völund Audio is a local desktop application for editing stems, mixing, mastering, preparing albums, and restoring vinyl recordings. The name comes from Völund, the master smith of Norse legend.
 
-**Version 0.95 · Tauri-app för Windows, macOS och Linux · VST3-stöd under test · Svenskt och engelskt gränssnitt · MIT-licens**
+**Development preview: 0.95 · Windows, macOS, and Linux · Experimental VST3 support · English and Swedish interface · MIT license**
 
-[Kom igång](#kom-igång) · [Läs manualen](docs/MANUAL.sv.md) · [Vinylrestaurering och låtuppdelning](docs/MANUAL.sv.md#arbetsomraden-och-vinylrestaurering) · [Arbeta med ett album](docs/MANUAL.sv.md#album) · [Bygg från källkod](#bygga-och-testa)
+[Getting started](#getting-started) · [Features](#features) · [Workflow](#typical-workflow) · [Manual](#manual) · [Build and test](#build-and-test)
 
-## Vad kan programmet göra?
+> The project is currently using **0.95** as its preview label. The Cargo and Tauri package metadata still reports **0.9.0**.
 
-| Del | Funktioner |
+## Features
+
+| Area | What you can do |
 |---|---|
-| **Stems** | Öppna Suno-ZIP, WAV, MP3 eller FLAC. Visa alla spår på samma tidslinje. Tysta, tona och panorera markerade partier med ångra/gör om per spår. |
-| **Mix** | Justera nivå, mute och solo per spår. Klipp bort eller behåll delar av den sammanlagda stereomixen före mastering. |
-| **Masteringstudio** | Separata profiler för Spotify, Vinyl, CD och Kassett. EQ, kompressor, valfri VST3-effekt före limiter och dither, LUFS/true-peak-mätning och före/efter-lyssning. |
-| **Album** | Nivåmatcha färdiga låtar med valbara undantag och egna justeringar. Exportera separata låtar eller sammanställ sida A/B med låtlistor. |
-| **Vinylrestaurering** | Minska klick, knaster och rumble. Hitta tystnader som möjliga låtgränser, justera markörerna och exportera uppdelade spår. Separera även en stereomix i trummor, bas, övrigt och sång med Demucs-RS. |
-| **Metadata och projekt** | Visa, ändra och rensa metadata. Spara originalfiler och redigeringar i ett återöppningsbart projekt. |
+| **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then mute, fade, or pan selected regions. Undo and redo edits per track. |
+| **Mixing** | Adjust track levels, mute, or solo tracks. Trim the combined stereo mix before mastering. |
+| **Mastering** | Use separate Spotify, Vinyl, CD, and Cassette profiles. Apply EQ, compression, an optional VST3 effect, limiting, and dithering. Compare before and after, and view LUFS and true-peak measurements. |
+| **Albums** | Loudness-match finished tracks, make individual adjustments, and export tracks or side A/B track lists. |
+| **Vinyl restoration** | Reduce clicks, crackle, and rumble. Detect possible track boundaries, adjust markers, and export split tracks. Optionally separate a stereo mix into drums, bass, other, and vocals with Demucs-RS. |
+| **Metadata and projects** | View, edit, and clear metadata. Save source audio and edits in a project that can be reopened later. |
 
-VST3-stödet är experimentellt i 0.95. Völund skannar standardmapparna vid start, och valda effekter körs offline vid förhandslyssning och export före den slutliga limitern och ditheringen. Pluginets eget fönster öppnas separat. Bypass går att slå på vid före/efter-jämförelse, och plugininställningar sparas med masteringprofilen i projektet. VST3-effekter används inte i realtidsuppspelning; plugin utan eget GUI kan inte öppnas i ett pluginfönster. FreeBSD saknar VST3-värden.
+### VST3 support
 
-Ljudbehandlingen körs lokalt på datorn. Demucs är en separat, valfri funktion: Windows-testpaketet innehåller motorn men inte modellvikterna. När du själv startar separationen hämtas vikterna från Hugging Face; ljudet skickas inte dit. Motorn paketeras för närvarande bara med Windows-testpaketet. Ingen AI-prenumeration behövs. Förslagen för oönskade ljud och masteringråden bygger på signalanalys, inte generativ AI.
+VST3 support is experimental in this preview. Völund scans the standard plugin folders at startup. A selected effect is loaded when needed and processed offline, before the final limiter and dither. Its editor opens in a separate native window.
 
-## Kom igång
+VST3 effects are not used during real-time playback. Plugins without an editor window cannot be opened from Völund. Plugin settings are stored with the mastering profile in the project, and bypass is available for before/after comparisons. VST3 hosting is not available in the FreeBSD browser fallback.
 
-1. Öppna [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions) och välj den senaste lyckade körningen för att hämta ett Windows-testpaket.
-2. Hämta **Volund-Audio-Windows** under **Artifacts** och packa upp ZIP-filen. GitHub kan kräva inloggning för nedladdningen.
-3. Starta `volund-audio.exe`. Windows-versionen använder ett eget programfönster med inbäddad webbvy och kräver [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-4. Välj **Öppna stems / projekt** och öppna stems för **en låt**, exempelvis Sunos ZIP-fil.
-5. Klicka på ett spår, markera ett parti och välj exempelvis **Tysta**. Lyssna på resultatet och välj **Spara projekt…** för att kunna fortsätta senare.
+### Local processing and Demucs
 
-Programmet är osignerat, så Windows SmartScreen kan visa en varning. Se [manualens startavsnitt](docs/MANUAL.sv.md#starta) för hur du kontrollerar källan och går vidare med ett betrott bygge.
+Audio processing runs locally. Demucs is an optional feature: the Windows test package includes the Demucs-RS engine, but not the model weights. When you start separation, the weights are downloaded from Hugging Face; your audio is not uploaded. The engine is currently bundled only with the Windows test package. No AI subscription is required.
 
-## Ett vanligt arbetsflöde
+Suggestions for unwanted sounds and mastering guidance are based on signal analysis, not generative AI.
 
-1. **Redigera stems:** ta bort ett extra sångljud genom att tysta just det partiet; de andra spåren behåller sin synk.
-2. **Forma mixen:** balansera spårnivåerna och lägg eventuell panorering. Klipp intro eller outro i **Mix · klipp före mastering**.
-3. **Skapa utgåvor:** justera masteringprofilerna, jämför före/efter och exportera de versioner du behöver.
-4. **Samla albumet:** öppna färdiga låtar från **samma profil** i albumdelens egen filväljare. Nivåmatcha och exportera låtar eller sida A/B.
+## Downloads
 
-Albumdelen använder kompletta låtar som underlag. Att öppna flera låtar som stems i huvudvyn skulle i stället lägga dem ovanpå varandra i en mix.
+Builds are published as GitHub Actions artifacts after a successful workflow run. Open [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions), choose a successful run, and download the artifact for your platform. Artifacts are temporary and currently retained for 30 days.
 
-## Spara rätt sak
+| Platform | Artifact | Notes |
+|---|---|---|
+| **Windows** | `Volund-Audio-Windows` | Contains `volund-audio.exe` and the optional Demucs-RS engine. Requires [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). |
+| **macOS** | `Volund-Audio-macOS` | Disk image (`.dmg`). |
+| **Ubuntu Linux** | `Volund-Audio-Ubuntu` | Debian package (`.deb`) and AppImage. |
 
-| Knapp | Resultat |
+These are development/test builds, not signed release installers. Windows SmartScreen or macOS security checks may show a warning.
+
+## Getting started
+
+1. Download the artifact for your operating system from a successful [GitHub Actions run](https://github.com/Morrberg/Volund-Audio/actions).
+2. Extract the Windows ZIP, open the macOS disk image, or install/run the Ubuntu package.
+3. Start Völund Audio. On Windows, make sure WebView2 Runtime is installed.
+4. Choose **Open stems / project** and open the stems for one song, such as a Suno ZIP archive.
+5. Select a track, mark a region, and try an edit such as **Mute**. Choose **Save project…** if you want to continue later.
+
+The Windows test build is unsigned, so SmartScreen may warn you. The [Swedish manual](docs/MANUAL.sv.md#starta) explains how to check the source and proceed with a build you trust.
+
+## Typical workflow
+
+1. **Edit stems:** mute an unwanted vocal sound in just that region; the other tracks stay in sync.
+2. **Shape the mix:** balance track levels and pan as needed. Use **Mix · trim before mastering** to shorten an intro or outro across all master versions.
+3. **Create masters:** adjust the mastering profiles, compare before and after, and export the versions you need.
+4. **Prepare an album:** use the album section's file picker to add finished songs made with the same profile, match levels, and export tracks or side A/B.
+
+The album section works with finished songs. Opening several songs as stems in the main view would place them on top of each other in one mix.
+
+## Saving and exporting
+
+| Control | Result |
 |---|---|
-| **Spara valt spår…** / **Ctrl+S** | En redigerad WAV av det aktiva spåret. |
-| **Spara redigerad mix…** | En stereomix före mastering. |
-| **Spara aktuell profil som WAV…** / **Spara valda versioner som ZIP…** | Färdiga masterfiler; ZIP-exporten innehåller även en mätrapport. |
-| **Spara projekt…** | Originalljud, stemredigeringar, mixklipp, mixnivåer, masteringinställningar och sparade VST3-inställningar i en `.vcleaner`-fil. |
-| **Spara sidprojekt…** | Albumets originallåtar, ordning, sidor och nivåmatchningsinställningar i en `.vcleaner`-fil. |
+| **Save selected track…** / **Ctrl+S** | A WAV file of the edited active track. |
+| **Save edited mix…** | A stereo mix before mastering. |
+| **Save current profile as WAV…** / **Save selected versions as ZIP…** | Finished master files; the ZIP also contains a measurement report. |
+| **Save project…** | Source audio, stem edits, mix trims and levels, mastering settings, and saved VST3 settings in a `.vcleaner` project file. |
+| **Save side project…** | The album's source tracks, order, sides, and level-matching settings in a `.vcleaner` project file. |
 
-**Att exportera ljud sparar inte projektet.** Programmet har ingen automatisk projektsparning eller kraschåterställning. Originalfilerna på datorn skrivs inte över av redigeringarna; välj ett nytt filnamn när du exporterar.
+**Exporting audio does not save the project.** There is no automatic project saving or crash recovery. Edits do not overwrite the source files; choose a new filename when exporting.
 
-## Manual och exempel
+## Manual
 
-[Den svenska manualen](docs/MANUAL.sv.md) går igenom kontrollerna och innehåller exempel på att:
+The [user manual](docs/MANUAL.sv.md) is currently in Swedish. It includes examples for:
 
-- tysta ett oönskat ”Wrooow” utan att rubba stemsens synk;
-- låta trummor pendla mellan vänster och höger;
-- korta ett intro i mixen före alla masterversioner;
-- exportera samma låt för flera format;
-- nivåmatcha ett album och behålla ett avsiktligt lugnare intro.
+- Muting an unwanted “Wrooow” without moving the stems out of sync.
+- Panning drums from left to right.
+- Trimming an intro in the mix before creating master versions.
+- Exporting the same song for several formats.
+- Matching album levels while keeping an intentionally quieter intro.
 
-Profilernas standardvärden är utgångspunkter, inte garantier för leverans till en viss tjänst eller tillverkare. Vinyl och kassett behöver anpassas till mottagarens krav. CD-exporten är WAV-ljud, inte en komplett DDP-master. Albumnivåmatchningen jämnar ut ljudstyrka; den gör ingen automatisk matchning av EQ eller klang.
+Profile defaults are starting points, not guarantees that a master meets a particular service's or manufacturer's requirements. Vinyl and cassette masters should be checked against the recipient's specifications. CD export produces WAV audio, not a complete DDP master. Album level matching adjusts loudness; it does not automatically match EQ or tone.
 
-## Bygga och testa
+## Build and test
 
-Installera Rust och Node.js 24 för respektive kontroll:
+Install Rust and Node.js 24. Tauri also requires platform-specific desktop libraries; the Linux packages used by CI are listed in [.github/workflows/rust.yml](.github/workflows/rust.yml).
+
+Run the tests and build with:
 
 ```sh
 cargo test
@@ -79,12 +103,10 @@ node tests/repair.test.cjs
 cargo build --release
 ```
 
-`cargo build --release` bygger Tauri-skrivbordsappen för Windows, Linux och macOS. Linux kräver Tauri/WebKitGTK-systempaketen som anges i GitHub Actions-flödet. FreeBSD använder webbläsarfallbacken tills skrivbordsbygget har verifierats där.
+The workflow builds desktop packages for Windows, macOS, and Ubuntu Linux. FreeBSD currently uses the browser fallback; desktop and VST3 support have not been verified there.
 
-GitHub Actions-flödet finns i [.github/workflows/rust.yml](.github/workflows/rust.yml). Windows-byggningar är aktiva igen för valideringen av 0.95. Hämta bara paket från en lyckad körning. Den manuella provkörningen av skrivbordsfönstret, VST3-laddning och pluginfönster återstår.
+## Project and license
 
-## Projektet
+Völund Audio was previously called **Vocal Cleaner**. Existing `.vcleaner` project files are still supported. The repository is [Morrberg/Volund-Audio](https://github.com/Morrberg/Volund-Audio).
 
-Programmet hette tidigare **Vocal Cleaner**. Äldre `.vcleaner`-projekt stöds fortfarande. GitHub-repot heter [Volund-Audio](https://github.com/Morrberg/Volund-Audio).
-
-Koden omfattas av [MIT-licensen](LICENSE). Programikonen finns i `icons/icon.png` och `icons/icon.ico`; den större Völund-illustrationen finns i `assets/volund-emblem.jpg`.
+This project is licensed under the [MIT License](LICENSE).
