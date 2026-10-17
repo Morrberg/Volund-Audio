@@ -8,7 +8,7 @@ Völund Audio is a local desktop application for editing stems, mixing, masterin
 
 **Development preview: 0.95 · Windows, macOS, and Linux · Experimental VST3 support · English and Swedish interface · MIT license**
 
-[Getting started](#getting-started) · [Features](#features) · [Workflow](#typical-workflow) · [Manual](#manual) · [Build and test](#build-and-test)
+[Getting started](#getting-started) · [Features](#features) · [Workflow](#typical-workflow) · [English manual](docs/MANUAL.en.md) · [Svensk manual](docs/MANUAL.sv.md) · [Build and test](#build-and-test)
 
 > The project is currently using **0.95** as its preview label. The Cargo and Tauri package metadata still reports **0.9.0**.
 
@@ -78,15 +78,12 @@ The album section works with finished songs. Opening several songs as stems in t
 
 **Exporting audio does not save the project.** There is no automatic project saving or crash recovery. Edits do not overwrite the source files; choose a new filename when exporting.
 
-## Manual
+## Manuals
 
-The [user manual](docs/MANUAL.sv.md) is currently in Swedish. It includes examples for:
+- [English user manual](docs/MANUAL.en.md) — a complete guide to editing stems, mixing, mastering, album preparation, vinyl restoration, and project files.
+- [Svensk användarmanual](docs/MANUAL.sv.md) — the Swedish version of the guide.
 
-- Muting an unwanted “Wrooow” without moving the stems out of sync.
-- Panning drums from left to right.
-- Trimming an intro in the mix before creating master versions.
-- Exporting the same song for several formats.
-- Matching album levels while keeping an intentionally quieter intro.
+Both manuals include practical examples, troubleshooting, and technical limits.
 
 Profile defaults are starting points, not guarantees that a master meets a particular service's or manufacturer's requirements. Vinyl and cassette masters should be checked against the recipient's specifications. CD export produces WAV audio, not a complete DDP master. Album level matching adjusts loudness; it does not automatically match EQ or tone.
 
