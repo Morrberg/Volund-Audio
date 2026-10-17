@@ -2,7 +2,7 @@
 
 <p align="center"><img src="../assets/volund-emblem.jpg" width="360" alt="Vingad Völund-symbol i antik brons"></p>
 
-**För version 0.9 · Smid fram ditt sound.**
+**För version 0.95 · Smid fram ditt sound.**
 
 Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkanten om du vill följa instruktionerna ord för ord. Gränssnittet kan också visas på engelska.
 
@@ -27,6 +27,7 @@ Manualen använder programmets svenska knappnamn. Välj **Svenska** i överkante
 14. [Spara och återöppna projekt](#projekt)
 15. [Felsökning och begränsningar](#felsokning)
 16. [Ordlista](#ordlista)
+17. [Enkel podd](#enkel-podd)
 
 <a id="arbetsflode"></a>
 ## 1. Förstå arbetsflödet
@@ -52,7 +53,7 @@ Ett lämpligt flöde är: **redigera stems → balansera mixen → klipp mixen �
 2. Programmet behöver Microsoft Edge WebView2 Runtime. Om fönstret inte kan öppnas, kontrollera att den är installerad.
 3. Välj språk och ljust eller mörkt tema i överkanten. **Om / About** visar version och information om programmet.
 
-Windows SmartScreen kan reagera på det osignerade programmet. Kontrollera att filen kommer från det avsedda bygget i projektets [GitHub Actions](https://github.com/Morrberg/Vocal-cleaner/actions). För ett bygge du har verifierat och litar på kan du välja **Mer information → Kör ändå**, om Windows erbjuder det. Du behöver inte stänga av SmartScreen generellt. Se även [Microsofts beskrivning](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
+Windows SmartScreen kan reagera på det osignerade programmet. Kontrollera att filen kommer från det avsedda bygget i projektets [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions). För ett bygge du har verifierat och litar på kan du välja **Mer information → Kör ändå**, om Windows erbjuder det. Du behöver inte stänga av SmartScreen generellt. Se även [Microsofts beskrivning](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
 ### Importera en låt
 
@@ -331,7 +332,7 @@ Använd respektive vinyl- eller kassettversion som underlag och stäm av format 
 
 | Vad du vill spara | Använd | Öppna igen med |
 |---|---|---|
-| En låts stems, redigeringar, ångra/gör om, metadataändringar, mixnivåer, mixklipp och masteringprofiler | **Spara projekt…** | **Öppna stems / projekt** |
+| En låts stems, redigeringar, ångra/gör om, metadataändringar, mixnivåer, mixklipp, masteringprofiler och valfria poddjinglar | **Spara projekt…** | **Öppna stems / projekt** |
 | Ett albums originallåtar, ordning, sidor, mellanrum, matchningsmål, undantag och nivåjusteringar | **Spara sidprojekt…** | **Öppna färdiga låtar** i albumdelen |
 | En färdig ljudfil för ett annat program eller en mottagare | Respektive WAV- eller ZIP-export | Importera ljudfilen där den ska användas |
 
@@ -339,7 +340,7 @@ Båda projekttyperna använder ändelsen `.vcleaner` och innehåller originalens
 
 **Ctrl+S sparar projektet; Ctrl+Shift+E exporterar det aktiva spåret som WAV.** I albumets arbetsområde sparar Ctrl+S sidprojektet. Ctrl+S öppnar dialogrutan där du väljer var projektfilen ska sparas. Du kan också använda projektknapparna. Att exportera ett spår eller en master sparar inte projektets redigeringar och kan därför lämna osparade projektändringar.
 
-Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.9.
+Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.95.
 
 <a id="felsokning"></a>
 ## 15. Felsökning och begränsningar
@@ -429,3 +430,25 @@ De-rumble är ett fjärde ordningens Butterworth-högpass (24 dB/oktav), uppbygg
 Hitta låtar använder högsta RMS-nivån i någon kanal över 20 ms-fönster. Standard: −45 dBFS och minst 1,5 sekunders paus. En markör placeras mitt i varje intern paus, med minst fem sekunder till filkanter och föregående markör. Inledande/slutlig tystnad skapar inte låtar. Lugn musik kan ge felaktiga förslag och knastriga pauser kan missas. Markörerna visas på vågformen, kan flyttas med sekundfält eller tas bort, och sparas i projektet. Lägg markör vid spelposition fungerar även vid pausad uppspelning.
 
 Exportera uppdelade låtar skapar en ZIP med numrerade 32-bit float WAV-filer och Tracks.json. Gränserna delar ljudet sammanhängande: inga samplingar eller pauser tas bort och ingen fade läggs till. Kontrollera markörerna och ljudnivån före leverans; floatformatet kan bevara toppar över 0 dBFS. Exportera valt spår som WAV ger en restaurerad fil utan uppdelning. Tidslinjen behåller sin ursprungliga längd.
+
+
+<a id="enkel-podd"></a>
+## 17. Enkel podd
+
+Enkel podd samlar de vanligaste kontrollerna för en inspelning med en ljudfil per mikrofon.
+
+### Förbered inspelningen
+
+1. Spela in alla mikrofoner samtidigt i samma inspelningspass.
+2. Exportera en mono- eller stereofil som WAV per mikrofon. Alla filer ska börja vid samma tidpunkt och ha hela inspelningens längd. Behåll tystnaden i början; klipp inte filerna var för sig.
+3. Öppna alla WAV-filer samtidigt i Völund Audio och välj **Enkel podd** på startsidan.
+
+Spåren ligger på en gemensam tidslinje. **Klipp bort markerad del** tar bort samma tidsintervall från hela programmet. **Tysta markerad del** gör partiet tyst utan att ändra programmets längd. Spårknapparna kan tysta en röst eller spela bara den rösten. Läget flyttar inte spår för att korrigera olika starttider. Be inspelningsledaren exportera om filer som inte börjar samtidigt.
+
+### Lägg till jingel i början eller slutet
+
+Välj en WAV-fil under **Jingle i början** eller **Jingle i slutet**. Båda är valfria. Startjingeln spelas före rösterna och slutjingeln efter inspelningen. Filerna ska vara vanliga RIFF/WAVE-filer, mono eller stereo, högst 30 sekunder och 12 MB. Välj **Rensa jingle** för att ta bort en jingel.
+
+Jinglarna ingår i podduppspelning, masteringens förhandslyssning och exporterade mixar och masterversioner. De sparas i <code>.vcleaner</code>-projektet. Spara projektet om du vill kunna öppna det och ändra jinglarna senare. Mixredigeringar gäller hela programmet, även jinglarna.
+
+När klippningen är klar väljer du **Klart – gå till mastering** och använder masteringkontrollerna för att exportera den färdiga WAV-filen.
