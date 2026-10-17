@@ -534,7 +534,7 @@ async function saveProject(){
   stashTrack();saving=true;saveState("Sparar projekt…");
   $("#vsel").disabled=true;$("#f").disabled=true;
   try{
-    await syncVst3State();const snapshot=JSON.stringify(tracks),fingerprint=projectFingerprint();
+    await syncVst3State(profileIds);const snapshot=JSON.stringify(tracks),fingerprint=projectFingerprint();
     const r=await fetch(`/api/project/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version:3,tracks:JSON.parse(snapshot),mastering:JSON.parse(JSON.stringify(mastering))})});
     if(!r.ok)throw new Error(await r.text());
     if(nativeDesktop){
@@ -608,8 +608,8 @@ function renderVst3Select(){const select=$('#vst3Select');if(!select)return;cons
 function chooseVst3(path){if(saving)return;const p=selectedProfile();if(!path){p.vst3=undefined}else if(p.vst3?.path!==path){p.vst3={path,enabled:true,bypass:false,state:null}}invalidateMaster();renderMaster();saveState()}
 function toggleVst3Enabled(enabled){const p=selectedProfile();if(!p.vst3?.path)return;p.vst3.enabled=enabled;invalidateMaster();saveState()}
 function toggleVst3Bypass(bypass){const p=selectedProfile();if(!p.vst3?.path)return;p.vst3.bypass=bypass;invalidateMaster();saveState()}
-async function openVst3Window(){const p=selectedProfile(),slot=p.vst3;if(!tauriInvoke||!slot?.path){$('#vst3Status').textContent='VST3-fönster kräver skrivbordsappen och ett valt plugin.';return}try{await tauriInvoke('open_plugin',{path:slot.path,sampleRate:p.sample_rate,state:slot.state||null});$('#vst3Status').textContent='Plugin-fönstret öppnades.'}catch(e){$('#vst3Status').textContent='Kunde inte öppna plugin-fönstret: '+e}}
-async function syncVst3State(ids=[mastering.selected]){if(!tauriInvoke)return;for(const id of ids){const slot=mastering.profiles[id]?.vst3;if(!slot?.path)continue;const state=await tauriInvoke('save_plugin_state',{path:slot.path});if(state)slot.state=state}}
+async function openVst3Window(){const p=selectedProfile(),slot=p.vst3;if(!tauriInvoke||!slot?.path){$('#vst3Status').textContent='VST3-fönster kräver skrivbordsappen och ett valt plugin.';return}try{await tauriInvoke('open_plugin',{path:slot.path,sampleRate:p.sample_rate,state:slot.state||null,profileId:p.id});$('#vst3Status').textContent='Plugin-fönstret öppnades.'}catch(e){$('#vst3Status').textContent='Kunde inte öppna plugin-fönstret: '+e}}
+async function syncVst3State(ids=[mastering.selected]){if(!tauriInvoke)return;for(const id of ids){const slot=mastering.profiles[id]?.vst3;if(!slot?.path)continue;const state=await tauriInvoke('save_plugin_state',{path:slot.path,profileId:id});if(state)slot.state=state}}
 function masterNormalize(enabled){masterValue('target_lufs',enabled?-14:null);renderMaster()}
 function chooseProfile(id){if(saving)return;mastering.selected=id;invalidateMaster();renderMaster();saveState()}
 function resetProfile(){if(saving)return;mastering.profiles[mastering.selected]=defaultProfile(mastering.selected);invalidateMaster();renderMaster();saveState()}

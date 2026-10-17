@@ -145,18 +145,44 @@ thread_local! {
 }
 
 #[cfg(not(target_os = "freebsd"))]
+fn start_editor_pump(app: tauri::AppHandle) {
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if STARTED.swap(true, std::sync::atomic::Ordering::AcqRel) { return; }
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        let app = app.clone();
+        if app.run_on_main_thread(|| {
+            OPEN_PLUGINS.with(|open| open.borrow_mut().retain(|_, (_, window)| {
+                let _ = window.service_platform_events();
+                if window.closed_by_user() { window.close(); }
+                true
+            }));
+        }).is_err() { break; }
+    });
+}
+
+#[cfg(not(target_os = "freebsd"))]
 #[tauri::command]
-pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state: Option<String>) -> Result<(), String> {
+pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state: Option<String>, profile_id: String) -> Result<(), String> {
     use std::sync::{Arc, Mutex, mpsc};
     use tauri::Manager;
     use vst3_host::{Vst3Host, window::PluginWindowBuilder};
     let path = approved_plugin_path(&path)?;
-    let key = path.to_string_lossy().into_owned();
+    if !["Spotify", "Vinyl", "CD", "Kassett"].contains(&profile_id.as_str()) { return Err("Okänd masteringprofil".into()); }
+    let key = format!("{profile_id}\0{}", path.to_string_lossy());
     let decoded_state = decode_state(state.as_deref())?;
     let (tx, rx) = mpsc::channel();
+    let pump_app = app.clone();
     app.run_on_main_thread(move || {
         let result = (|| {
-            if OPEN_PLUGINS.with(|open| open.borrow().contains_key(&key)) { return Ok(()); }
+            let existing = OPEN_PLUGINS.with(|open| {
+                let mut open = open.borrow_mut();
+                if let Some((_, window)) = open.get_mut(&key) {
+                    if !window.is_open() { window.open().map_err(|e|e.to_string())?; }
+                    Ok(true)
+                } else { Ok(false) }
+            })?;
+            if existing { return Ok(()); }
             let mut host = Vst3Host::builder().sample_rate(sample_rate.clamp(8000,192000) as f64).block_size(512).build().map_err(|e|e.to_string())?;
             let mut plugin = host.load_plugin(&key).map_err(|e|format!("Kunde inte ladda VST3: {e}"))?;
             if let Some(bytes) = decoded_state { plugin.load_state(&bytes).map_err(|e|format!("Kunde inte återställa VST3-inställningarna: {e}"))?; }
@@ -164,6 +190,7 @@ pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state:
             let plugin = Arc::new(Mutex::new(plugin));
             let window = PluginWindowBuilder::new(plugin.clone()).open_standalone().map_err(|e|e.to_string())?;
             OPEN_PLUGINS.with(|open| { open.borrow_mut().insert(key, (plugin, window)); });
+            start_editor_pump(pump_app);
             Ok(())
         })();
         let _ = tx.send(result);
@@ -173,12 +200,13 @@ pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state:
 
 #[cfg(not(target_os = "freebsd"))]
 #[tauri::command]
-pub fn save_plugin_state(app: tauri::AppHandle, path: String) -> Result<Option<String>, String> {
+pub fn save_plugin_state(app: tauri::AppHandle, path: String, profile_id: String) -> Result<Option<String>, String> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use std::sync::mpsc;
     use tauri::Manager;
     let path = approved_plugin_path(&path)?;
-    let key = path.to_string_lossy().into_owned();
+    if !["Spotify", "Vinyl", "CD", "Kassett"].contains(&profile_id.as_str()) { return Err("Okänd masteringprofil".into()); }
+    let key = format!("{profile_id}\0{}", path.to_string_lossy());
     let (tx, rx) = mpsc::channel();
     app.run_on_main_thread(move || {
         let state = OPEN_PLUGINS.with(|open| {
