@@ -302,6 +302,12 @@ fn set_language(language: String) {
 }
 
 #[cfg(not(target_os = "freebsd"))]
+#[tauri::command]
+fn open_donation_page() -> Result<(), String> {
+    open::that("https://buymeacoffee.com/morrbergc").map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "freebsd"))]
 fn main() {
     use tauri::{Manager, WindowEvent};
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
@@ -313,7 +319,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ApiOrigin(origin))
         .manage(ProjectDirty::default())
-        .invoke_handler(tauri::generate_handler![api_origin, set_project_dirty, set_language, vst::scan_plugins, vst::open_plugin, vst::save_plugin_state])
+        .invoke_handler(tauri::generate_handler![api_origin, set_project_dirty, set_language, open_donation_page, vst::scan_plugins, vst::open_plugin, vst::save_plugin_state])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let dirty = window.state::<ProjectDirty>().0.load(std::sync::atomic::Ordering::Relaxed);
