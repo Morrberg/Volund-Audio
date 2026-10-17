@@ -25,7 +25,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "category": "AudioVideo",
+    "category": "Music",
     "shortDescription": "Local stem editor, mixing and mastering",
     "icon": [
       "target/volund-icon-rgba.png",
