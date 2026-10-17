@@ -436,7 +436,7 @@ pub async fn sides(State(root):State<std::path::PathBuf>,Path(sid):Path<String>,
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn profile(id:&str)->Profile {Profile{id:id.into(),sample_rate:44100,bits:if id=="CD"{16}else{24},target_lufs:Some(-14.),ceiling_db:-1.,bass_db:0.,mid_db:0.,treble_db:0.,compression:15.,mono_bass_hz:0.,highpass_hz:0.,limiter:true,dc_block:false}}
+    fn profile(id:&str)->Profile {Profile{id:id.into(),sample_rate:44100,bits:if id=="CD"{16}else{24},target_lufs:Some(-14.),ceiling_db:-1.,bass_db:0.,mid_db:0.,treble_db:0.,compression:15.,mono_bass_hz:0.,highpass_hz:0.,limiter:true,dc_block:false,vst3:None}}
     fn sine(sr:u32,seconds:f64,frequency:f64,amplitude:f64)->Vec<f32>{(0..(sr as f64*seconds) as usize).flat_map(|i|{let v=(amplitude*(2.*PI*frequency*i as f64/sr as f64).sin()) as f32;[v,v]}).collect()}
     #[test]fn loudness_reference_and_silence(){let m=measure(&sine(48000,5.,1000.,0.1),48000).unwrap();assert!((m.lufs.unwrap()+20.).abs()<0.4);assert!((m.true_peak_db.unwrap()+20.).abs()<0.1);assert!(measure(&vec![0.;48000],48000).unwrap().lufs.is_none());}
     #[test]fn profiles_reach_target_and_respect_true_peak(){let source=sine(44100,4.,1000.,0.05);for id in ["Spotify","CD","Vinyl","Kassett"]{let p=profile(id);let(y,r)=process(&source,&p).unwrap();assert_eq!(y.len(),source.len());assert!((r.output.lufs.unwrap()+14.).abs()<0.3);assert!(r.output.true_peak_db.unwrap()<=p.ceiling_db);let data=wav(&y,p.sample_rate,p.bits,false).unwrap();let reader=hound::WavReader::new(Cursor::new(data)).unwrap();assert_eq!(reader.spec().bits_per_sample,p.bits);assert_eq!(reader.spec().sample_rate,p.sample_rate);}}

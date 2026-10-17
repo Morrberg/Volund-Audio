@@ -179,7 +179,7 @@ pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state:
     let pump_app = app.clone();
     app.run_on_main_thread(move || {
         let result = (|| {
-            let existing = OPEN_PLUGINS.with(|open| {
+            let existing = OPEN_PLUGINS.with(|open| -> Result<bool, String> {
                 let mut open = open.borrow_mut();
                 if let Some((_, window)) = open.get_mut(&key) {
                     if !window.is_open() { window.open().map_err(|e|e.to_string())?; }

@@ -27,7 +27,7 @@ Ljudbehandlingen körs lokalt på datorn. Demucs är en separat, valfri funktion
 
 ## Kom igång
 
-1. För en befintlig Windows-testversion: öppna [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions) och välj en lyckad körning. Ingen ny 0.95-Windows-build finns uppladdad medan den automatiska byggningen är pausad.
+1. Öppna [GitHub Actions](https://github.com/Morrberg/Volund-Audio/actions) och välj den senaste lyckade körningen för att hämta ett Windows-testpaket.
 2. Hämta **Volund-Audio-Windows** under **Artifacts** och packa upp ZIP-filen. GitHub kan kräva inloggning för nedladdningen.
 3. Starta `volund-audio.exe`. Windows-versionen använder ett eget programfönster med inbäddad webbvy och kräver [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
 4. Välj **Öppna stems / projekt** och öppna stems för **en låt**, exempelvis Sunos ZIP-fil.
@@ -81,7 +81,7 @@ cargo build --release
 
 `cargo build --release` bygger Tauri-skrivbordsappen för Windows, Linux och macOS. Linux kräver Tauri/WebKitGTK-systempaketen som anges i GitHub Actions-flödet. FreeBSD använder webbläsarfallbacken tills skrivbordsbygget har verifierats där.
 
-GitHub Actions-flödet finns i [.github/workflows/rust.yml](.github/workflows/rust.yml). Den automatiska Windows-byggningen är för närvarande pausad medan 0.95 förbereds. Kör Windows-testpaketet först när den manuella provkörningen av skrivbordsfönstret, VST3-laddning och pluginfönster är redo.
+GitHub Actions-flödet finns i [.github/workflows/rust.yml](.github/workflows/rust.yml). Windows-byggningar är aktiva igen för valideringen av 0.95. Hämta bara paket från en lyckad körning. Den manuella provkörningen av skrivbordsfönstret, VST3-laddning och pluginfönster återstår.
 
 ## Projektet
 
