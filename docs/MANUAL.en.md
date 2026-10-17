@@ -153,7 +153,7 @@ Both channels of a stereo track can be moved to the same side. Summing them can 
 Each track has a level control in dB, **Mute**, and **Solo**.
 
 - **0 dB** keeps the level unchanged. A negative value lowers it and a positive value raises it; the range is −60 to +12 dB.
-- **Mute** removes the entire track from mix playback and mix export. This differs from **Mute**, which edits only a selected region.
+- **Mute** removes the entire track from mix playback and mix export. This differs from muting a selected region, which affects only the selected audio.
 - **Solo** makes only soloed, unmuted tracks audible. A muted track remains silent even if Solo is selected.
 
 **Example:** lower the vocals to −2 dB if they sit too far forward, or lower the guitars to −1 dB if the mix feels too dense. These are examples; listen to your own song.
