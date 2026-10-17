@@ -8,7 +8,10 @@ const context=vm.createContext({console,JSON,Math,Float32Array,Uint8ClampedArray
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
 const html=fs.readFileSync('static/index.html','utf8');vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
 async function run(code){return vm.runInContext(code,context)}
-assert.equal(documentListeners.has('change'),true);
+assert.equal(documentListeners.has('input'),true);
+assert.equal(html.indexOf('id="acoustIdKey"')<html.indexOf('<fieldset id="vinylFields" disabled>'),true);
+documentListeners.get('input')({target:{id:'acoustIdKey',value:'test-key-before-audio'}});
+assert.equal(storedItems.get('volund-acoustid-client'),'test-key-before-audio');
 documentListeners.get('change')({target:{id:'acoustIdKey',value:'test-client-key'}});
 assert.equal(storedItems.get('volund-acoustid-client'),'test-client-key');
 (async()=>{
