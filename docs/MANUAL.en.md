@@ -340,7 +340,7 @@ Use the relevant Vinyl or Cassette version as the source and confirm format and 
 
 Both project types use the `.vcleaner` extension and contain the source audio, so they can be large. Older projects from Vocal Cleaner are still supported.
 
-**Ctrl+S saves the project; Ctrl+Shift+E exports the active track as WAV.** Ctrl+S opens the dialog where you choose where to save the project file. You can also use the project buttons. Exporting a track or master does not save the project's edits and can therefore leave unsaved project changes.
+**Ctrl+S saves the project; Ctrl+Shift+E exports the active track as WAV.** In the album workspace, Ctrl+S saves the side project. Ctrl+S opens the dialog where you choose where to save the project file. You can also use the project buttons. Exporting a track or master does not save the project's edits and can therefore leave unsaved project changes.
 
 Canceling a save dialog keeps your work in the app. The close warning does not save anything automatically. Version 0.9 has no automatic project saving or crash recovery.
 
@@ -404,7 +404,7 @@ The spline method can help with short, hard digital clipping. It does not genera
 <a id="volume-global-analysis-and-dc-offset"></a>
 ## 18. Track volume, global analysis, and DC offset
 
-Each track has a volume slider from −60 to +12 dB next to its numeric field. Both controls change the same saved mix level. During stem playback, gain changes smoothly without restarting playback. The control affects the mix and mastering; **Save selected track** saves track edits without the mix gain.
+Each track has a volume slider from −60 to +12 dB next to its numeric field. Both controls change the same saved mix level. During stem playback, gain changes smoothly without restarting playback. The control affects the mix and mastering; **Export selected track as WAV** saves track edits without the mix gain.
 
 **Analyze & suggest** shows global analysis before and after mastering: the highest True Peak in a 100 ms detector interval, the highest and lowest finite short-term LUFS values over three seconds, and a distribution in 1 LU-wide bins. LUFS is read every 100 ms, so the windows overlap: percentages describe measurement windows, not independent sections of the song. Files shorter than three seconds have no short-term values. Digital silence without a finite value is excluded from the minimum. True Peak filter delay is not compensated, so the time is a guide, not an exact sample index. Times refer to the edited mix after trimming. The full measurement series, distribution, and each channel's average DC offset are included in `Mastering-report.json`.
 
@@ -431,6 +431,6 @@ De-rumble is a fourth-order Butterworth high-pass filter (24 dB/octave), built f
 
 **Find tracks** uses the highest RMS level in any channel over 20 ms windows. Defaults are −45 dBFS and at least 1.5 seconds of silence. A marker is placed in the middle of each internal pause, at least five seconds from file edges and the previous marker. Silence at the beginning or end does not create tracks. Quiet music can produce false suggestions, and crackly pauses can be missed. Markers appear on the waveform, can be moved with the seconds field or removed, and are saved in the project. **Add marker at play position** also works while playback is paused.
 
-**Export split tracks** creates a ZIP with numbered 32-bit float WAV files and `Tracks.json`. The boundaries split the audio continuously: no samples or pauses are removed and no fade is added. Check markers and audio levels before delivery; the float format can preserve peaks above 0 dBFS. **Save selected track** creates a restored file without splitting. The timeline keeps its original duration.
+**Export split tracks** creates a ZIP with numbered 32-bit float WAV files and `Tracks.json`. The boundaries split the audio continuously: no samples or pauses are removed and no fade is added. Check markers and audio levels before delivery; the float format can preserve peaks above 0 dBFS. **Export selected track as WAV** creates a restored file without splitting. The timeline keeps its original duration.
 
 [Back to contents](#contents) · [Back to README](../README.md) · [Svensk manual](MANUAL.sv.md)
