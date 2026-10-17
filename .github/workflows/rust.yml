@@ -6,12 +6,22 @@ on:
   pull_request:
     branches: [main, 'port/**']
   workflow_dispatch:
+    inputs:
+      build_scope:
+        description: 'Run Linux validation only, or build every platform and package'
+        required: true
+        type: choice
+        options:
+          - linux
+          - all
+        default: linux
 
 permissions:
   contents: read
 
 jobs:
   tauri-platform-builds:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
     name: Tauri build (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -33,6 +43,7 @@ jobs:
         run: cargo build --release
 
   build-native-packages:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
     name: Build ${{ matrix.platform }} package
     strategy:
       fail-fast: false
@@ -117,8 +128,11 @@ jobs:
         run: node --test tests/editor.test.cjs tests/repair.test.cjs
       - name: Run tests
         run: cargo test --verbose
+      - name: Build Linux desktop application
+        run: cargo build --release
 
   build-windows:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
     name: Build Windows package
     runs-on: windows-latest
     steps:
