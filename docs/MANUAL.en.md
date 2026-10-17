@@ -30,6 +30,7 @@ This manual uses the English interface labels. Choose **English** at the top of 
 17. [Trim Silence and De-clip](#trim-silence-and-de-clip)
 18. [Track volume, global analysis, and DC offset](#volume-global-analysis-and-dc-offset)
 19. [Workspaces and vinyl restoration](#workspaces-and-vinyl-restoration)
+20. [Easy Podcast mode](#easy-podcast)
 
 <a id="workflow"></a>
 ## 1. Understanding the workflow
@@ -334,7 +335,7 @@ Use the relevant Vinyl or Cassette version as the source and confirm format and 
 
 | What you want to save | Use | Reopen with |
 |---|---|---|
-| A song's stems, edits, undo/redo history, metadata changes, mix levels, mix trims, and mastering profiles | **Save project…** | **Open stems / project** |
+| A song's stems, edits, undo/redo history, metadata changes, mix levels, mix trims, mastering profiles, and optional podcast jingles | **Save project…** | **Open stems / project** |
 | An album's source songs, order, sides, gaps, matching target, exclusions, and level adjustments | **Save side project…** | **Open finished songs** in the album section |
 | A finished audio file for another app or recipient | The relevant WAV or ZIP export | Import the audio file where you need it |
 
@@ -434,3 +435,25 @@ De-rumble is a fourth-order Butterworth high-pass filter (24 dB/octave), built f
 **Export split tracks** creates a ZIP with numbered 32-bit float WAV files and `Tracks.json`. The boundaries split the audio continuously: no samples or pauses are removed and no fade is added. Check markers and audio levels before delivery; the float format can preserve peaks above 0 dBFS. **Export selected track as WAV** creates a restored file without splitting. The timeline keeps its original duration.
 
 [Back to contents](#contents) · [Back to README](../README.md) · [Svensk manual](MANUAL.sv.md)
+
+
+<a id="easy-podcast"></a>
+## 20. Easy Podcast mode
+
+Easy Podcast keeps the controls focused on a spoken-word session. It is designed for a recording with one audio file per microphone.
+
+### Prepare the recordings
+
+1. Record all microphones at the same time in one session.
+2. Export one mono or stereo WAV per microphone from the same start point. Keep the full session length and any silence at the beginning; do not trim each file separately.
+3. Open all the WAV files together in Völund Audio, then choose **Easy Podcast** from the start screen.
+
+The tracks share one timeline. Cutting a selected passage removes that time range from the whole programme. Muting a passage silences it in the mix but keeps the programme length. Individual track buttons mute a voice or let you listen to one voice by itself. The mode does not move tracks to correct files that start at different times; ask the recording leader to prepare those files from a common start point.
+
+### Add an opening or closing jingle
+
+Choose a WAV file under **Jingle at beginning** or **Jingle at end**. Either one is optional. The opening jingle plays before the recorded voices; the closing jingle plays after them. Supported files are standard RIFF/WAVE, mono or stereo, up to 30 seconds and 12 MB each. Select **Remove jingle** to clear one.
+
+The jingles are included in podcast playback, mastering previews, and exported mixes and masters. They are saved inside the <code>.vcleaner</code> project, so save the project if you want to reopen or change the jingles later. Mix edits apply to the full programme, including the jingles.
+
+When the edit is ready, choose **Done – go to mastering** and use the usual mastering controls to make the final WAV export.
