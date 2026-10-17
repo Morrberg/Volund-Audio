@@ -188,7 +188,7 @@ pub fn open_plugin(app: tauri::AppHandle, path: String, sample_rate: u32, state:
             })?;
             if existing { return Ok(()); }
             let mut host = Vst3Host::builder().sample_rate(sample_rate.clamp(8000,192000) as f64).block_size(512).build().map_err(|e|e.to_string())?;
-            let mut plugin = host.load_plugin(&key).map_err(|e|format!("Kunde inte ladda VST3: {e}"))?;
+            let mut plugin = host.load_plugin(&path).map_err(|e|format!("Kunde inte ladda VST3: {e}"))?;
             if let Some(bytes) = decoded_state { plugin.load_state(&bytes).map_err(|e|format!("Kunde inte återställa VST3-inställningarna: {e}"))?; }
             if !plugin.has_editor() { return Err("Pluginet har inget eget GUI-fönster".into()); }
             let plugin = Arc::new(Mutex::new(plugin));
