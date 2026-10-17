@@ -21,7 +21,7 @@ Völund Audio is a local desktop application for editing stems, mixing, masterin
 | **Easy Podcast** | Work with one microphone WAV per voice on a shared timeline. Cut or mute the same section across the whole mix, add an optional opening and closing jingle, then continue to mastering. |
 | **Mastering** | Use separate Spotify, Vinyl, CD, and Cassette profiles. Apply EQ, compression, an optional VST3 effect, limiting, and dithering. Compare before and after, and view LUFS and true-peak measurements. |
 | **Albums** | Loudness-match finished tracks, make individual adjustments, and export tracks or side A/B track lists. |
-| **Vinyl restoration** | Reduce clicks, crackle, and rumble. Detect possible track boundaries, adjust markers, and export split tracks. Optionally separate a stereo mix into drums, bass, other, and vocals with Demucs-RS. |
+| **Vinyl restoration** | Reduce clicks, crackle, and rumble. Detect possible track boundaries, adjust markers, and export split tracks. Identify marked tracks with AcoustID and fetch a matched release’s complete track list from MusicBrainz. Optionally separate a stereo mix into drums, bass, other, and vocals with Demucs-RS. |
 | **Metadata and projects** | View, edit, and clear metadata. Save source audio and edits in a project that can be reopened later. |
 
 ### VST3 support
@@ -33,6 +33,8 @@ VST3 effects are not used during real-time playback. Plugins without an editor w
 ### Local processing and Demucs
 
 Audio processing runs locally. Demucs is an optional feature: the Windows test package includes the Demucs-RS engine, but not the model weights. When you start separation, the weights are downloaded from Hugging Face; your audio is not uploaded. The engine is currently bundled only with the Windows test package. No AI subscription is required.
+
+Chromaprint fingerprints are created locally. If you start track identification, only the fingerprint and duration are sent to AcoustID; your audio is not uploaded. The feature requires internet access and an AcoustID application key. When you select a suggested release, Völund requests its full track listing from MusicBrainz using the release ID. This can help compare a rip of side A or B with the disc, but release pressings may differ and MusicBrainz may not encode vinyl-side positions. The matched recording is highlighted; Völund does not create or move markers automatically.
 
 Suggestions for unwanted sounds and mastering guidance are based on signal analysis, not generative AI.
 

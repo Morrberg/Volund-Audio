@@ -20,6 +20,7 @@ bytes = "1"
 tokio-stream = "0.1"
 ureq = "2.12"
 dirs = "5"
+chromaprint = { package = "chromaprint-next", version = "0.1" }
 
 # Tauri is the desktop shell on Linux, Windows and macOS. FreeBSD keeps the
 # browser-based fallback until its WebKit/GTK packaging can be verified.
