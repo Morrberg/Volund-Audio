@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   tauri-platform-builds:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_scope == 'all' }}
     name: Tauri build (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -43,7 +43,7 @@ jobs:
         run: cargo build --release
 
   build-native-packages:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_scope == 'all' }}
     name: Build ${{ matrix.platform }} package
     strategy:
       fail-fast: false
@@ -132,7 +132,7 @@ jobs:
         run: cargo build --release
 
   build-windows:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_scope == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_scope == 'all' }}
     name: Build Windows package
     runs-on: windows-latest
     steps:
