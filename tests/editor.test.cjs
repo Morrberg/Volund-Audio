@@ -1,12 +1,16 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const elements=new Map();
+const elements=new Map(),documentListeners=new Map(),storedItems=new Map();
 function element(){return {dataset:{},style:{},setAttribute(){},disabled:false,textContent:'',clientWidth:100,clientHeight:100,children:[],classList:{toggle(){},add(){},remove(){},contains(){return false}},append(...children){for(const child of children){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child)}},replaceChildren(...children){for(const child of this.children)child.parentElement=null;this.children=[];this.append(...children)},getBoundingClientRect:()=>({top:0}),getContext:()=>({clearRect(){},fillRect(){},fillText(){},drawImage(){},putImageData(){}})}}
 const context=vm.createContext({console,JSON,Math,Float32Array,Uint8ClampedArray,ImageData:class{constructor(data,width,height){this.data=data;this.width=width;this.height=height}},navigator:{userAgent:'Windows'},
- document:{createTextNode:text=>({textContent:text}),createElement:element,addEventListener(){},querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
+ localStorage:{getItem:key=>storedItems.get(key)||null,setItem:(key,value)=>storedItems.set(key,value)},
+ document:{createTextNode:text=>({textContent:text}),createElement:element,addEventListener(type,handler){documentListeners.set(type,handler)},querySelector(s){if(!elements.has(s))elements.set(s,element());return elements.get(s)}},
  AudioContext:class{createBuffer(ch,length,sr){const data=Array.from({length:ch},()=>new Float32Array(length));return {numberOfChannels:ch,length,sampleRate:sr,duration:length/sr,getChannelData:c=>data[c]}}},
  addEventListener(){},window:{},fetch:async()=>({ok:true,json:async()=>({cancelled:false,name:'Vocals_cleaned.wav'})})});
 const html=fs.readFileSync('static/index.html','utf8');vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
 async function run(code){return vm.runInContext(code,context)}
+assert.equal(documentListeners.has('change'),true);
+documentListeners.get('change')({target:{id:'acoustIdKey',value:'test-client-key'}});
+assert.equal(storedItems.get('volund-acoustid-client'),'test-client-key');
 (async()=>{
 await run(`bufs={'Vocals.wav':ctx.createBuffer(2,1000,100),'Drums.wav':ctx.createBuffer(2,1000,100)};names=Object.keys(bufs);sid='test';setVocal('Vocals.wav');sel=[1,2];addEdit('mute');`);
 assert.equal(await run('edits.length'),1);assert.equal(await run('projectDirty()'),true);
