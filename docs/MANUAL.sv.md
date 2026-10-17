@@ -337,7 +337,7 @@ Använd respektive vinyl- eller kassettversion som underlag och stäm av format 
 
 Båda projekttyperna använder ändelsen `.vcleaner` och innehåller originalens ljuddata. De kan därför bli stora. Äldre projekt från Vocal Cleaner stöds fortfarande.
 
-**Ctrl+S sparar projektet; Ctrl+Shift+E exporterar det aktiva spåret som WAV.** Ctrl+S öppnar dialogrutan där du väljer var projektfilen ska sparas. Du kan också använda projektknapparna. Att exportera ett spår eller en master sparar inte projektets redigeringar och kan därför lämna osparade projektändringar.
+**Ctrl+S sparar projektet; Ctrl+Shift+E exporterar det aktiva spåret som WAV.** I albumets arbetsområde sparar Ctrl+S sidprojektet. Ctrl+S öppnar dialogrutan där du väljer var projektfilen ska sparas. Du kan också använda projektknapparna. Att exportera ett spår eller en master sparar inte projektets redigeringar och kan därför lämna osparade projektändringar.
 
 Avbruten spardialog behåller arbetet i programmet. Stängningsvarningen sparar däremot inget automatiskt. Det finns ingen automatisk projektsparning eller kraschåterställning i version 0.9.
 
