@@ -8,6 +8,7 @@ mod global_analysis;
 mod mastering;
 mod album;
 mod demucs;
+mod vst;
 #[cfg(not(target_os="freebsd"))]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(not(target_os="freebsd"))]
@@ -312,7 +313,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ApiOrigin(origin))
         .manage(ProjectDirty::default())
-        .invoke_handler(tauri::generate_handler![api_origin, set_project_dirty, set_language])
+        .invoke_handler(tauri::generate_handler![api_origin, set_project_dirty, set_language, vst::scan_plugins, vst::open_plugin, vst::save_plugin_state])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let dirty = window.state::<ProjectDirty>().0.load(std::sync::atomic::Ordering::Relaxed);

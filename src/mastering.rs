@@ -30,6 +30,7 @@ pub struct Profile {
     pub highpass_hz: f64,
     pub limiter: bool,
     #[serde(default)] pub dc_block: bool,
+    #[serde(default)] pub vst3: Option<crate::vst::Vst3Slot>,
 }
 impl Profile {
     fn validate(&self) -> Result<(), String> {
@@ -285,6 +286,9 @@ fn process(mix:&[f32],p:&Profile)->Result<(Vec<f32>,Report),String> {
     let mut warnings=Vec::new();let requested=p.target_lufs.zip(toned.lufs).map_or(0.,|(target,current)|target-current);let boost=requested.clamp(-60.,12.);
     if requested>12. {warnings.push("gain_limited".into())}
     for s in &mut y {*s*=gain(boost) as f32}
+    if let Some(slot)=p.vst3.as_ref().filter(|slot|slot.enabled && !slot.bypass) {
+        crate::vst::process_offline(&mut y,p.sample_rate,slot)?;
+    }
     let reduction=if p.limiter {limit(&mut y,p.sample_rate,p.ceiling_db-0.05)}else{0.};
     let mut safety=0.;
     // Measure the rendered, dithered signal too. Ceiling wins over loudness target.
