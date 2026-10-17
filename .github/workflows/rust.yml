@@ -32,6 +32,72 @@ jobs:
       - name: Build desktop application
         run: cargo build --release
 
+  build-native-packages:
+    name: Build ${{ matrix.platform }} package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-latest
+            bundles: dmg
+          - platform: Ubuntu
+            os: ubuntu-24.04
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux desktop dependencies
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libfuse2
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --locked --version "^2"
+
+      - name: Generate macOS app icon
+        if: matrix.platform == 'macOS'
+        run: |
+          cargo tauri icon icons/icon.png --output target/tauri-icons
+          cat > tauri.macos.conf.json <<'EOF'
+          {
+            "bundle": {
+              "icon": [
+                "target/volund-icon-rgba.png",
+                "icons/icon.ico",
+                "target/tauri-icons/icon.icns"
+              ]
+            }
+          }
+          EOF
+
+      - name: Build native package
+        run: cargo tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Upload macOS package
+        if: matrix.platform == 'macOS'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Volund-Audio-macOS
+          path: target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Ubuntu packages
+        if: matrix.platform == 'Ubuntu'
+        uses: actions/upload-artifact@v6
+        with:
+          name: Volund-Audio-Ubuntu
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 30
+
   test-linux:
     name: Test on Linux
     runs-on: ubuntu-latest
