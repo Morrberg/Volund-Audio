@@ -66,6 +66,7 @@ jobs:
           cat > tauri.macos.conf.json <<'EOF'
           {
             "bundle": {
+              "category": "Music",
               "icon": [
                 "target/volund-icon-rgba.png",
                 "icons/icon.ico",
