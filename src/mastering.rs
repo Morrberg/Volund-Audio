@@ -201,7 +201,8 @@ fn apply_edits(y: &mut Vec<f32>, sr: u32, ch: usize, mono: bool, edits: &[Edit])
     let mut pan_base:Option<Vec<f32>>=None;
     for (index,e) in edits.iter().enumerate() {
         if e.kind=="pan" && edits[index+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end) {continue}
-        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan","declip","cut"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan","declip","cut","gate"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+        if e.kind=="gate" && (!e.threshold_db.is_finite() || !(-90. ..=0.).contains(&e.threshold_db)) {return Err("Ogiltig brusgräns".into())}
         if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
         let frames=y.len()/ch;
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
@@ -224,6 +225,18 @@ fn apply_edits(y: &mut Vec<f32>, sr: u32, ch: usize, mono: bool, edits: &[Edit])
                 let weight=if edge>0 {(i as f64/edge as f64).min((n-1-i) as f64/edge as f64).min(1.)}else{1.};
                 let j=(a+i)*2;let (l,r)=(y[j] as f64,y[j+1] as f64);let (pl,pr)=pan_frame(base[j] as f64,base[j+1] as f64,p,mono);
                 y[j]=(l+(pl-l)*weight) as f32;y[j+1]=(r+(pr-r)*weight) as f32;
+            }
+            continue;
+        }
+        if e.kind=="gate" {
+            let threshold=10f32.powf(e.threshold_db/20.);let close=threshold*0.5;
+            let attack=(-1.0/(0.003*sr as f32)).exp();let release=(-1.0/(0.060*sr as f32)).exp();
+            let(mut open,mut gain)=(true,1.0f32);
+            for frame in a..b {
+                let level=(y[frame*ch..(frame+1)*ch].iter().map(|v|v*v).sum::<f32>()/ch as f32).sqrt();
+                if open {if level<close {open=false}} else if level>=threshold {open=true}
+                let target=if open {1.0}else{0.0};let coefficient=if target>gain {attack}else{release};gain=target+(gain-target)*coefficient;
+                for sample in &mut y[frame*ch..(frame+1)*ch] {*sample*=gain}
             }
             continue;
         }
@@ -539,6 +552,13 @@ mod tests {
         assert_eq!(edited.len(),1600);assert!(edited[200..400].iter().all(|v|*v==0.0));
         let whole=Edit{kind:"cut".into(),start:0.0,end:1.0,..Default::default()};
         assert!(render_edits(vec![0.5;1000],1000,1,&[whole]).is_err());
+    }
+    #[test]
+    fn noise_gate_reduces_quiet_sections_and_keeps_loud_drums() {
+        let mut original=vec![0.001f32;200];original.extend(vec![0.5;200]);original.extend(vec![0.001;200]);
+        let gate=Edit{kind:"gate".into(),start:0.0,end:0.6,threshold_db:-40.0,..Default::default()};
+        let (processed,ch)=render_edits(original,1000,1,&[gate]).unwrap();
+        assert_eq!(ch,1);assert!(processed[150].abs()<0.0001);assert!(processed[250]>0.45);assert!(processed[550].abs()<0.0005);
     }
     #[test]
     fn mono_pan_and_periodic_motion_preserve_length_and_energy() {

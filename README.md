@@ -16,7 +16,7 @@ Völund Audio is a local desktop application for editing stems, mixing, masterin
 
 | Area | What you can do |
 |---|---|
-| **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then cut, mute, fade, or pan selected regions. Undo and redo edits per track. |
+| **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then cut, mute, fade, gate quiet sections, or pan selected regions. Undo and redo edits per track. |
 | **Mixing** | Adjust track levels, mute, or solo tracks. Trim the combined stereo mix before mastering. |
 | **Easy Podcast** | Work with one microphone WAV per voice on a shared timeline. Cut or mute the same section across the whole mix, add an optional opening and closing jingle, then continue to mastering. |
 | **Mastering** | Use separate Spotify, Vinyl, CD, and Cassette profiles. Apply EQ, compression, an optional VST3 effect, limiting, and dithering. Compare before and after, and view LUFS and true-peak measurements. |

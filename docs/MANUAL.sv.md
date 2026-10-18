@@ -98,10 +98,13 @@ Markera ett parti och välj:
 | **Tysta** | Gör partiet tyst och använder korta mjuka övergångar kring kanterna. Spårets längd behålls. |
 | **Fade-in** | Tonar upp ljudet genom markeringen. |
 | **Fade-out** | Tonar ned ljudet genom markeringen. |
+| **Brusgrind** | Dämpar tysta partier under vald dBFS-gräns. Ställ gränsen och välj Brusgrind; utan markering behandlas hela spåret. Mjuk öppning och stängning minskar risken för klick. |
 | **Ångra / Gör om** | Ändrar redigeringshistoriken för det aktiva spåret. |
 | **Visar: Redigerad / Original** | Växlar stemvågformer och stemlyssning mellan redigerat och ursprungligt ljud. |
 
 Växlingen till **Original** tar inte bort redigeringarna och stänger inte av dem i export eller mastering. Vill du ändra vad som exporteras använder du **Ångra** eller gör om redigeringen.
+
+Brusgrinden fungerar bäst när bruset ligger mellan slagen. Den skiljer inte brus från trumljud som spelas samtidigt, och en för hög gräns kan dämpa svaga slag och cymbalsvansar. Justera gränsen medan du lyssnar och använd Ångra för att jämföra.
 
 ### Exempel: ta bort ett extra ”Wrooow”
 

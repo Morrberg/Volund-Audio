@@ -100,10 +100,13 @@ Select a region and choose:
 | **Mute** | Silences the region and applies short, smooth transitions at its edges. The track length stays the same. |
 | **Fade-in** | Fades the sound up across the selection. |
 | **Fade-out** | Fades the sound down across the selection. |
+| **Noise gate** | Attenuates quiet sections below the selected dBFS threshold. Set the threshold and choose Noise gate; with no selection, it processes the full track. Smooth attack and release reduce clicks. |
 | **Undo / Redo** | Changes the edit history for the active track. |
 | **Showing: Edited / Original** | Switches the stem waveform and stem playback between edited and original audio. |
 
 Switching to **Original** does not remove edits or disable them for export or mastering. To change what is exported, use **Undo** or redo the edit.
+
+The noise gate works best when noise occurs between drum hits. It cannot distinguish noise from drum sound that overlaps it, and a threshold set too high can attenuate quiet hits and cymbal tails. Adjust it while listening and use Undo to compare.
 
 ### Example: removing an extra “Wrooow”
 
