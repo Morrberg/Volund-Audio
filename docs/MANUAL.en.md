@@ -418,6 +418,8 @@ The start view offers **Track editing**, **Mix editing**, **Mastering**, **Vinyl
 
 Vinyl restoration processes the selected source track before track edits, mixing, and mastering. Enable the features you want and choose **Apply & prepare preview**. The same Rust processing is used for preview, export of the selected track, split-track export, and mastering. Settings are saved in the project. When reopened, the preview is prepared again from the original audio. **Reset restoration** removes the entire restoration process. Source files are never changed.
 
+In Vinyl restoration, use **Cut selection** beside **Mute** to remove a selected section before track detection and split export. **Undo** restores the latest cut. The cut's original time position is saved in the project so track markers remain aligned.
+
 ### Separating a mix into instruments and vocals
 
 If an old vinyl release has an unbalanced mix, you can first import a single stereo recording and choose **Separate recorded mix**. Demucs-RS creates four new tracks: drums, bass, other, and vocals. Völund mutes the original mix and selects the vocal track; then adjust the track levels in Mix editing. The original file remains available.

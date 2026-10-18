@@ -416,6 +416,8 @@ Startvyn erbjuder Spårredigering, Mixredigering, Mastering, Vinylrestaurering o
 
 Vinylrestaurering behandlar valt originalspår före spårredigeringar, mixning och mastering. Aktivera önskade funktioner och tryck Tillämpa & förbered lyssning. Samma Rust-behandling används vid förhandslyssning, export av valt spår, uppdelad export och mastering. Inställningarna sparas i projektet; vid återöppning förbereds lyssningen på nytt från originalljudet. Återställ restaurering tar bort hela restaureringsbehandlingen. Originalfilerna ändras aldrig.
 
+I Vinylrestaurering använder **Klipp bort** bredvid **Tysta** samma markering för att ta bort ett parti före låtanalys och uppdelad export. **Ångra** återställer senaste klippet. Klippets ursprungliga tidsposition sparas i projektet så att låtmarkörerna fortsatt hamnar rätt.
+
 ### Separera en mix i instrument och sång
 
 Om en gammal vinylutgåva har en obalanserad mix kan du först importera en ensam stereoinspelning och trycka **Separera inspelad mix**. Demucs-RS skapar fyra nya spår: trummor, bas, övrigt och sång. Völund mutar originalmixen och väljer sångspåret; justera sedan spårens nivåer i Mixredigering. Originalfilen finns kvar.
