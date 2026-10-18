@@ -85,7 +85,7 @@ await run(`$('#mixStart').value=.1;$('#mixEnd').value=.6;cutMix('keep');`);asser
 assert.equal(await run('masterRequest().mix_edits.length'),2);
 await run('mastering=restoreMaster(JSON.parse(JSON.stringify(mastering)));refreshMix()');assert.equal(await run('mixAudio.length'),500);await run('undoMix()');assert.equal(await run('mixAudio.length'),800);
 await run(`$('#mixStart').value=0;$('#mixEnd').value=.8;cutMix('cut');`);assert.equal(await run('mixAudio.length'),800);assert.equal(await run('mastering.mixEdits.length'),1);
-await run(`setLanguage('en')`);assert.equal(await run(`t('Klipp bort markering')`),'Cut selection');assert.equal(await run(`t('Spara projekt…')`),'Save project…');await run(`setLanguage('sv')`);assert.equal(await run(`t('Klipp bort markering')`),'Klipp bort markering');
+await run(`setLanguage('en')`);assert.equal(await run(`t('Klipp bort markering')`),'Cut selection');assert.equal(await run(`t('Spara projekt…')`),'Save project…');assert.equal(await run(`t('Exportera valt spår…')`),'Export selected track…');await run(`setLanguage('sv')`);assert.equal(await run(`t('Klipp bort markering')`),'Klipp bort markering');
 await run(`$('#albumMatch').checked=true;$('#albumCustom').checked=true;$('#albumTarget').value=-16;$('#albumCeiling').value=-2;sideTracks=[{stem:'Quiet.wav',side:'A',gap:0,match_level:false,offset_db:-3}];`);
 assert.equal(await run('sideRequest().level_matching.target_lufs'),-16);assert.equal(await run('sideRequest().tracks[0].match_level'),false);assert.equal(await run('sideRequest().tracks[0].offset_db'),-3);
 await run(`sideSaved=JSON.stringify(sideRequest());albumPlan={};sideChanged()`);assert.equal(await run('albumPlan'),null);assert.equal(await run('sideDirty()'),false);
@@ -113,5 +113,15 @@ assert.match(html,/<img src="data:image\/svg\+xml;base64,[^"]+" alt="Völund Aud
 assert.ok(html.includes('id="demucsPanel"'));
 assert.ok(html.includes('id="demucsFields"'));
 assert.ok(html.includes('volund-demucs-rs-consent-v1'));
+assert.match(html,/<button class="edit" onclick="addEdit\('cut'\)">Klipp bort<\/button>/);
+assert.ok(html.includes('<option value="flac">FLAC</option>'));
+assert.ok(html.includes('<option value="mp3">MP3 · 320 kbit/s</option>'));
+assert.ok(html.includes('<option value="m4a">AAC · M4A · 256 kbit/s</option>'));
+await run(`const realDraw=draw;draw=()=>{};bufs['Cut.wav']=ctx.createBuffer(2,1000,100);for(let c=0;c<2;c++)bufs['Cut.wav'].getChannelData(c).fill(.25);names.push('Cut.wav');tracks['Cut.wav']={edits:[]};setVocal('Cut.wav');edits=[];sel=[2,4];addEdit('cut');`);
+assert.equal(await run(`editedBuffer('Cut.wav').length`),800);
+await run(`sel=[1,2];addEdit('cut')`);assert.equal(await run(`editedBuffer('Cut.wav').length`),700);
+await run(`sel=[0,7];addEdit('cut')`);assert.equal(await run(`edits.length`),2);assert.equal(await run(`$('#saveStatus').textContent`),'Klippningen kan inte ta bort hela spåret.');
+await run('undo()');assert.equal(await run(`editedBuffer('Cut.wav').length`),800);
+await run(`draw=realDraw`);
 console.log('PASS: stem edits, project persistence, vinyl controls, and Demucs single-mix gating');
 })().catch(e=>{console.error(e);process.exitCode=1});

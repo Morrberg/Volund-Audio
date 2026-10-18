@@ -10,6 +10,7 @@ mod album;
 mod demucs;
 mod vst;
 mod audio_id;
+mod audio_export;
 #[cfg(not(target_os="freebsd"))]
 static ENGLISH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 #[cfg(not(target_os="freebsd"))]
@@ -173,7 +174,8 @@ async fn analyze(State(root): State<PathBuf>, Path((sid, name)): Path<(String, S
 struct Edit { kind: String, start: f32, end: f32, #[serde(default)] fade: f32,
     #[serde(default)] pan_from: f32, #[serde(default)] pan_to: f32, #[serde(default)] pan_cycles: u16 }
 #[derive(Deserialize)]
-struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes>, #[serde(default)] restoration: Option<vinyl::Settings> }
+struct ExportReq { stem: String, edits: Vec<Edit>, #[serde(default)] metadata: Option<metadata::Changes>, #[serde(default)] restoration: Option<vinyl::Settings>, #[serde(default = "default_export_format")] format: String }
+fn default_export_format() -> String { "wav".into() }
 
 async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): Json<ExportReq>)
     -> R<([(HeaderName, String); 2], Vec<u8>)> {
@@ -181,18 +183,13 @@ async fn export(State(root): State<PathBuf>, Path(sid): Path<String>, Json(r): J
     let (mut y, sr, ch) = decode(&sess(&root, &sid)?.join(&name)).map_err(bad)?;
     vinyl::apply(&mut y,sr,ch,r.restoration.as_ref()).map_err(bad)?;
     let (y, ch) = mastering::render_edits(y, sr, ch, &r.edits).map_err(bad)?;
-    let spec = hound::WavSpec { channels: ch as u16, sample_rate: sr, bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float };
-    let mut buf = Cursor::new(Vec::new());
-    {
-        let mut w = hound::WavWriter::new(&mut buf, spec).map_err(bad)?;
-        for s in &y { w.write_sample(*s).map_err(bad)?; }
-        w.finalize().map_err(bad)?;
-    }
+    let ext = audio_export::extension(&r.format).map_err(bad)?;
+    let content_type = audio_export::content_type(&r.format).map_err(bad)?.to_string();
+    let mut bytes = audio_export::encode(&y, sr, ch, &r.format).map_err(bad)?;
+    if r.format == "wav" { bytes = metadata::apply(&sess(&root, &sid)?.join(&name), bytes, r.metadata.as_ref()).map_err(bad)?; }
     let stem_name = FsPath::new(&name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    Ok(([(header::CONTENT_TYPE, "audio/wav".to_string()),
-         (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{stem_name}_cleaned.wav\""))],
-        metadata::apply(&sess(&root, &sid)?.join(&name), buf.into_inner(), r.metadata.as_ref()).map_err(bad)?))
+    Ok(([(header::CONTENT_TYPE, content_type),
+         (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{stem_name}_cleaned.{ext}\""))], bytes))
 }
 
 async fn serve(ready: std::sync::mpsc::Sender<String>) {
@@ -242,10 +239,16 @@ async fn save(state: State<PathBuf>, sid: Path<String>, req: Json<ExportReq>) ->
     #[cfg(not(target_os = "freebsd"))]
     {
         let name = fname(&req.0.stem);
-        let suggested = format!("{}_cleaned.wav", FsPath::new(&name).file_stem().unwrap_or_default().to_string_lossy());
+        let format = req.0.format.clone();
+        let (ext, label) = match format.as_str() {
+            "wav" => ("wav", "WAV-ljud"), "flac" => ("flac", "FLAC-ljud"),
+            "mp3" => ("mp3", "MP3-ljud"), "m4a" => ("m4a", "AAC M4A-ljud"),
+            _ => return Err(bad("Välj WAV, FLAC, MP3 eller AAC (M4A)")),
+        };
+        let suggested = format!("{}_cleaned.{ext}", FsPath::new(&name).file_stem().unwrap_or_default().to_string_lossy());
         let path = tokio::task::spawn_blocking(move || rfd::FileDialog::new()
             .set_title(ui_text("Spara redigerat spår", "Save edited track"))
-            .add_filter("WAV-ljud", &["wav"])
+            .add_filter(label, &[ext])
             .set_file_name(&suggested).save_file()).await.map_err(bad)?;
         let Some(path) = path else { return Ok(Json(json!({"cancelled": true}))); };
         // Stoppa överskrivning av importerade original även om användaren väljer arbetsmappen.

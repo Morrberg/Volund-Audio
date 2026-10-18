@@ -21,6 +21,11 @@ tokio-stream = "0.1"
 ureq = "2.12"
 dirs = "5"
 chromaprint = { package = "chromaprint-next", version = "0.1" }
+base64 = "0.22"
+flacenc = { version = "0.5.1", default-features = false }
+mp4 = "0.14"
+rusty_aac = "1.1"
+rusty_mp3 = "1"
 
 # Tauri is the desktop shell on Linux, Windows and macOS. FreeBSD keeps the
 # browser-based fallback until its WebKit/GTK packaging can be verified.
@@ -28,7 +33,6 @@ chromaprint = { package = "chromaprint-next", version = "0.1" }
 tauri = { version = "2" }
 tauri-plugin-dialog = "2"
 rfd = "0.15"
-base64 = "0.22"
 vst3-host = { version = "0.10", default-features = false }
 
 [profile.release]

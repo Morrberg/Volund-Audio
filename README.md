@@ -16,7 +16,7 @@ Völund Audio is a local desktop application for editing stems, mixing, masterin
 
 | Area | What you can do |
 |---|---|
-| **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then mute, fade, or pan selected regions. Undo and redo edits per track. |
+| **Stem editing** | Open Suno ZIP archives, WAV, MP3, or FLAC files. View tracks on a shared timeline, then cut, mute, fade, or pan selected regions. Undo and redo edits per track. |
 | **Mixing** | Adjust track levels, mute, or solo tracks. Trim the combined stereo mix before mastering. |
 | **Easy Podcast** | Work with one microphone WAV per voice on a shared timeline. Cut or mute the same section across the whole mix, add an optional opening and closing jingle, then continue to mastering. |
 | **Mastering** | Use separate Spotify, Vinyl, CD, and Cassette profiles. Apply EQ, compression, an optional VST3 effect, limiting, and dithering. Compare before and after, and view LUFS and true-peak measurements. |
@@ -81,13 +81,13 @@ Optional opening and closing jingles can be loaded as mono or stereo WAV files (
 
 | Control | Result |
 |---|---|
-| **Save selected track…** / **Ctrl+S** | A WAV file of the edited active track. |
+| **Export selected track…** / **Ctrl+Shift+E** | Choose WAV (32-bit float), FLAC (24-bit lossless), MP3 (320 kbps), or AAC in an M4A container (256 kbps). WAV retains the editable metadata fields. |
 | **Save edited mix…** | A stereo mix before mastering. |
 | **Save current profile as WAV…** / **Save selected versions as ZIP…** | Finished master files; the ZIP also contains a measurement report. |
 | **Save project…** | Source audio, stem edits, mix trims and levels, mastering settings, optional podcast jingles, and saved VST3 settings in a `.vcleaner` project file. |
 | **Save side project…** | The album's source tracks, order, sides, and level-matching settings in a `.vcleaner` project file. |
 
-**Exporting audio does not save the project.** There is no automatic project saving or crash recovery. Edits do not overwrite the source files; choose a new filename when exporting.
+**Exporting audio does not save the project.** There is no automatic project saving or crash recovery. Edits do not overwrite the source files; choose a new filename when exporting. FLAC is lossless. MP3 and AAC are lossy encodings; converting an already-compressed source cannot restore lost detail.
 
 ## Manuals
 

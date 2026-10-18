@@ -196,15 +196,23 @@ fn pan_frame(l:f64,r:f64,p:f64,mono:bool)->(f64,f64) {
     if p<0. {let angle=(p+1.)*PI/2.;(l+r*angle.cos(),r*angle.sin())}
     else {let angle=p*PI/2.;(l*angle.cos(),r+l*angle.sin())}
 }
-fn apply_edits(y: &mut [f32], sr: u32, ch: usize, mono: bool, edits: &[Edit]) -> Result<(), String> {
+fn apply_edits(y: &mut Vec<f32>, sr: u32, ch: usize, mono: bool, edits: &[Edit]) -> Result<(), String> {
     if ch==0 {return Err("Ljudet saknar kanaler".into())}
-    let frames=y.len()/ch;
     let mut pan_base:Option<Vec<f32>>=None;
-    let pans=edits.iter().enumerate().filter(|(i,e)|e.kind=="pan"&&!edits[i+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end)).map(|(_,e)|e);
-    for e in edits.iter().filter(|e|e.kind!="pan").chain(pans) {
-        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan","declip"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
+    for (index,e) in edits.iter().enumerate() {
+        if e.kind=="pan" && edits[index+1..].iter().any(|later|later.kind=="pan"&&later.start==e.start&&later.end==e.end) {continue}
+        if !e.start.is_finite() || !e.end.is_finite() || !e.fade.is_finite() || e.start<0. || e.end<e.start || !(0. ..=2.).contains(&e.fade) || !["mute","fadein","fadeout","pan","declip","cut"].contains(&e.kind.as_str()) { return Err("Ogiltig spårredigering".into()); }
         if e.kind=="pan" && (!e.pan_from.is_finite() || !e.pan_to.is_finite() || !(-1. ..=1.).contains(&e.pan_from) || !(-1. ..=1.).contains(&e.pan_to) || e.pan_cycles>32) {return Err("Ogiltig panorering".into())}
+        let frames=y.len()/ch;
         let a=((e.start as f64*sr as f64).round() as usize).min(frames);let b=((e.end as f64*sr as f64).round() as usize).min(frames);let n=b-a;if n==0 {continue}
+        if e.kind=="cut" {
+            if n==frames {return Err("Klippningen får inte ta bort hela spåret".into())}
+            let edge=((sr as usize)/200).min(a).min(frames-b);
+            for i in 0..edge {let gain=i as f32/edge as f32;for c in 0..ch {y[(a-edge+i)*ch+c]*=gain;y[(b+i)*ch+c]*=gain}}
+            y.drain(a*ch..b*ch);
+            pan_base=None;
+            continue
+        }
         if e.kind=="declip" { crate::repair::declip(&mut y[a*ch..b*ch],ch); continue; }
         if e.kind=="pan" {
             let edge=((e.fade as f64*sr as f64).round() as usize).min((n-1)/2);
@@ -518,6 +526,19 @@ mod tests {
         let center=Edit{pan_from:0.,pan_to:0.,..edit.clone()};let (reset,_)=render_edits(original.clone(),1000,2,&[edit.clone(),center]).unwrap();assert_eq!(reset,original);
         let partial=Edit{start:0.4,end:0.6,pan_from:0.,pan_to:0.,..edit.clone()};let (blended,_)=render_edits(original.clone(),1000,2,&[edit.clone(),partial]).unwrap();assert_eq!(blended[801],0.);assert!((blended[1001]-0.3).abs()<1e-6);
         let sweep=Edit{pan_to:1.,..edit};let (moving,_)=render_edits(original,1000,2,&[sweep]).unwrap();assert!(moving[440]>moving[441]);assert!(moving[1559]>moving[1558]);
+    }
+    #[test]
+    fn cut_edit_shortens_audio_and_uses_the_updated_timeline_for_next_edits() {
+        let original=vec![0.5f32;2000];
+        let cut=Edit{kind:"cut".into(),start:0.2,end:0.4,fade:0.01,..Default::default()};
+        let (shortened,ch)=render_edits(original.clone(),1000,2,&[cut.clone()]).unwrap();
+        assert_eq!(ch,2);assert_eq!(shortened.len(),1600);assert_eq!(shortened[0],original[0]);
+        assert!((shortened[398]-0.4).abs()<1e-6);assert_eq!(shortened[400],0.0);
+        let second=Edit{kind:"mute".into(),start:0.1,end:0.2,fade:0.01,..Default::default()};
+        let (edited,_)=render_edits(original,1000,2,&[cut,second]).unwrap();
+        assert_eq!(edited.len(),1600);assert!(edited[200..400].iter().all(|v|*v==0.0));
+        let whole=Edit{kind:"cut".into(),start:0.0,end:1.0,..Default::default()};
+        assert!(render_edits(vec![0.5;1000],1000,1,&[whole]).is_err());
     }
     #[test]
     fn mono_pan_and_periodic_motion_preserve_length_and_energy() {

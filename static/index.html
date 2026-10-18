@@ -77,7 +77,8 @@ body[data-workspace="podcast"] .track .wave{display:none}
   <select data-areas="editor vinyl" id="vsel" title="Sångspår"></select>
   <button class="p" data-areas="editor" id="suggestButton" onclick="analyze()">Hitta förslag</button>
   <div class="save-actions" aria-label="Spara och exportera">
-    <button data-areas="editor vinyl" id="save" onclick="saveWav()" disabled>Exportera valt spår som WAV…</button>
+    <select data-areas="editor vinyl" id="exportFormat" aria-label="Exportformat"><option value="wav">WAV</option><option value="flac">FLAC</option><option value="mp3">MP3 · 320 kbit/s</option><option value="m4a">AAC · M4A · 256 kbit/s</option></select>
+    <button data-areas="editor vinyl" id="save" onclick="saveWav()" disabled>Exportera valt spår…</button>
     <button class="p" id="projectSave" onclick="saveProject()" disabled>Spara projekt… <kbd>Ctrl/Cmd+S</kbd></button>
   </div>
   <span id="projectState" data-dirty="false">Inget projekt öppet</span>
@@ -135,7 +136,7 @@ body[data-workspace="podcast"] .track .wave{display:none}
   <button onclick="stop()">■ Stopp</button>
   <button onclick="selPlay()">Spela markering</button>
   <label><input type="checkbox" onchange="loop=this.checked"> Loop markering</label>
-  <span class="separator" aria-hidden="true"></span><button class="edit" onclick="addEdit('mute')">Tysta</button>
+  <span class="separator" aria-hidden="true"></span><button class="edit" onclick="addEdit('cut')">Klipp bort</button><button class="edit" onclick="addEdit('mute')">Tysta</button>
   <button class="edit" onclick="addEdit('fadein')">Fade-in</button>
   <button class="edit" onclick="addEdit('fadeout')">Fade-out</button><button class="edit" onclick="addEdit('declip',sel||[0,bufs[vocal]?.duration||0])">De-clip (spline)</button>
   <span class="separator" aria-hidden="true"></span><button onclick="undo()">Ångra</button><button onclick="redoE()">Gör om</button>
@@ -233,7 +234,7 @@ Object.assign(english,{
 Object.assign(english,{'Audio fingerprint & metadata':'Ljudfingeravtryck & metadata','Create a local Chromaprint and look up track information via AcoustID/MusicBrainz. Only the fingerprint and duration are sent; your audio stays on your computer. Requires internet and your AcoustID application key.':'Skapa Chromaprint lokalt och slå upp låtinformation via AcoustID/MusicBrainz. Endast fingeravtryck och längd skickas; ljudfilen stannar på datorn. Kräver internet och en AcoustID-appnyckel.','AcoustID-inställningar':'AcoustID settings','Appnyckeln sparas automatiskt lokalt på den här enheten.':'The application key is saved locally on this device.','Nyckeln anges under AcoustID-inställningar.':'Set the key under AcoustID settings.','Kunde inte spara nyckeln lokalt.':'Could not save the key locally.','AcoustID application key':'AcoustID-appnyckel','Identify marked tracks':'Identifiera markerade låtar','Select Fetch track listing on a match to show the full track list for that release from MusicBrainz. The matched recording is highlighted; vinyl markers are not changed automatically.':'Välj Hämta låtlista på en match för att visa hela utgåvans låtlista från MusicBrainz. Den matchade inspelningen markeras; vinylmarkörerna ändras inte automatiskt.','Fetch track listing':'Hämta låtlista','Fetching complete track listing…':'Hämtar hela låtlistan…','Medium':'Medium','Track listing loaded':'Låtlista hämtad','The complete release track listing is loaded. The matched track is highlighted; markers are not changed automatically.':'Hela utgåvans låtlista är hämtad. Den matchade låten markeras; markörerna ändras inte automatiskt.','Could not fetch track listing — try again':'Kunde inte hämta låtlista – försök igen','Could not fetch track listing: ':'Låtlistan kunde inte hämtas: ','No match found.':'Ingen match hittades.','Unknown title':'Okänd titel','Track ':'Låt ','match ':'träff ','Creating local fingerprints and querying AcoustID…':'Skapar lokala fingeravtryck och frågar AcoustID…','Enter your AcoustID application key first.':'Ange din AcoustID-appnyckel först.','Fingerprint lookup failed: ':'Uppslagningen misslyckades: ','Fingerprint matches are suggestions. Verify against the record sleeve.':'Metadata är förslag – kontrollera mot skivomslaget.'});
 let language='sv';
 Object.assign(english,{"Album · nivåmatchning och sida A/B": "Album · loudness matching and sides A/B", "Öppna färdiga låtar från samma masteringprofil, till exempel alla CD-versioner. Matcha upplevd ljudstyrka över hela albumet och exportera separata låtar eller sida A/B. Ingen ny EQ, kompressor eller limiter läggs på.": "Open finished tracks from the same mastering profile, such as all CD versions. Match perceived loudness across the album and export individual tracks or sides A/B. No additional EQ, compressor or limiter is applied.", "Matcha låtarnas upplevda ljudstyrka": "Match perceived loudness across tracks", "Eget LUFS-mål": "Custom LUFS target", "Albumets LUFS-mål": "Album LUFS target", "Automatiskt mål = medianen för de låtar som ska matchas. Avmarkera Matcha på ett lugnt intro eller välj en egen justering, exempelvis −3 dB. Om topparna kräver det sänks hela albumet lika mycket, så att balansen bevaras.": "Automatic target = median of the tracks selected for matching. Uncheck Match for a quiet intro, or add an adjustment such as −3 dB. If peaks require it, the entire album is attenuated equally to preserve its balance.", "Analysera albumnivåer": "Analyze album levels", "Spara nivåmatchade låtar som ZIP…": "Save album tracks as ZIP…", "Spara sidprojekt bevarar originalljud, låtordning, nivåmatchning, undantag och justeringar. Exporten innehåller WAV-filer och en mätrapport. LUFS ger en utgångspunkt: lyssna igenom övergångarna. EQ och klangbalans behöver fortfarande bedömas med öronen.": "Save side project preserves original audio, track order, level matching, exceptions and adjustments. Export includes WAV files and a measurement report. LUFS is a starting point: audition the transitions. EQ and tonal balance still need to be judged by ear.", "Matcha": "Match", "Egen justering efter nivåmatchning · dB": "Manual adjustment after loudness matching · dB", "Justering för ": "Adjustment for ", "Låt": "Track", "Före · LUFS": "Before · LUFS", "Efter · LUFS": "After · LUFS", "Justering · dB": "Adjustment · dB", "Efter ": "After ", "Före ": "Before ", "För kort eller tyst för LUFS; matchas inte.": "Too short or silent for LUFS; not matched.", "Beräknat albummål: ": "Calculated album target: ", "Nivåmatchning avstängd. ": "Loudness matching disabled. ", "Hela albumet sänks ": "The entire album is attenuated by ", " dB för att bevara balans och toppmarginal. ": " dB to preserve balance and peak headroom. ", "Inga mätbara låtar valda för matchning. ": "No measurable tracks selected for matching. ", "Värdena är beräknade; exporten mäts efter slutlig konvertering.": "Values are predicted; export is measured after final conversion.", "Analyserar albumets låtar…": "Analyzing album tracks…"});
-Object.assign(english,{'Smid fram ditt sound':'Forge your sound','Uppkallad efter mästersmeden Völund. Här smider vi låtar.':'Named after the master smith Völund. Here we forge songs.','Ta bort panorering':'Remove panning','❚❚ Paus':'❚❚ Pause','Visar: ':'Showing: ','Redigerad':'Edited','Varv':'Cycles','Markera först ett parti i spåret.':'Select a region in the track first.','Klipp bort oönskade partier':'Remove unwanted sections','Klipp bort markeringen':'Cut selection','Ångra senaste klipp':'Undo last cut','Markera brus eller ett tyst parti i vågformen och klipp bort det. Klippet sparas i projektet; originalfilen ändras inte. Ljudet efter klippet flyttas ihop vid analys och export.':'Select noise or silence in the waveform and cut it out. The cut is saved in the project; the original file is unchanged. Audio after the cut is joined for analysis and export.','Återställ':'Restore','Markera ett ljudparti i vågformen först.':'Select an audio section in the waveform first.','Markeringen ligger utanför ljudfilen.':'Selection is outside the audio file.','Klippet överlappar ett befintligt klipp.':'The cut overlaps an existing cut.','Markerat parti klipps bort vid analys och export. Originalfilen är bevarad.':'Selected section will be cut during analysis and export. The original file is preserved.','Senaste klippet återställt.':'Last cut restored.'});
+Object.assign(english,{'Smid fram ditt sound':'Forge your sound','Uppkallad efter mästersmeden Völund. Här smider vi låtar.':'Named after the master smith Völund. Here we forge songs.','Ta bort panorering':'Remove panning','❚❚ Paus':'❚❚ Pause','Visar: ':'Showing: ','Redigerad':'Edited','Varv':'Cycles','Markera först ett parti i spåret.':'Select a region in the track first.','Klipp bort oönskade partier':'Remove unwanted sections','Klipp bort markeringen':'Cut selection','Ångra senaste klipp':'Undo last cut','Markera brus eller ett tyst parti i vågformen och klipp bort det. Klippet sparas i projektet; originalfilen ändras inte. Ljudet efter klippet flyttas ihop vid analys och export.':'Select noise or silence in the waveform and cut it out. The cut is saved in the project; the original file is unchanged. Audio after the cut is joined for analysis and export.','Återställ':'Restore','Markera ett ljudparti i vågformen först.':'Select an audio section in the waveform first.','Markeringen ligger utanför ljudfilen.':'Selection is outside the audio file.','Klippet överlappar ett befintligt klipp.':'The cut overlaps an existing cut.','Markerat parti klipps bort vid analys och export. Originalfilen är bevarad.':'Selected section will be cut during analysis and export. The original file is preserved.','Senaste klippet återställt.':'Last cut restored.','Klippningen kan inte ta bort hela spåret.':'The cut cannot remove the entire track.','Exportformat':'Export format','MP3 · 320 kbit/s':'MP3 · 320 kbps','AAC · M4A · 256 kbit/s':'AAC · M4A · 256 kbps','Exportera valt spår…':'Export selected track…'});
 const translationPattern=new RegExp(Object.keys(english).filter(key=>key.length>=4).sort((a,b)=>b.length-a.length).map(key=>key.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'g');
 function t(text){if(language!=='en')return text;if(english[text]!==undefined)return english[text];return text.replace(translationPattern,key=>english[key])}
 
@@ -409,29 +410,34 @@ function editedBuffer(name){
   const ops=name===vocal?edits:tracks[name]?.edits||[],b=restoredBuffers.get(name)||bufs[name],key=JSON.stringify(ops);
   if(!ops.length){editedBuffers.delete(name);return b}
   const cached=editedBuffers.get(name);if(cached?.key===key&&cached.original===b)return cached.buffer;
-  const channels=ops.some(e=>e.kind==='pan')?2:b.numberOfChannels;
-  const buffer=ctx.createBuffer(channels,b.length,b.sampleRate),sr=b.sampleRate;
-  for(let c=0;c<channels;c++)buffer.getChannelData(c).set(b.getChannelData(Math.min(c,b.numberOfChannels-1)));
-  let panBase=null;
-  for(const e of [...ops.filter(e=>e.kind!=='pan'),...ops.filter((e,i)=>e.kind==='pan'&&!ops.slice(i+1).some(later=>later.kind==='pan'&&later.start===e.start&&later.end===e.end))]){
-    const a=Math.max(0,Math.round(e.start*sr)),z=Math.min(b.length,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
-    if(e.kind==='declip'){declipSamples(Array.from({length:channels},(_,c)=>buffer.getChannelData(c).subarray(a,z)));continue}
+  const channels=ops.some(e=>e.kind==='pan')?2:b.numberOfChannels,sr=b.sampleRate;
+  let samples=Array.from({length:channels},(_,c)=>b.getChannelData(Math.min(c,b.numberOfChannels-1)).slice()),panBase=null;
+  for(const e of ops){
+    const frames=samples[0].length,a=Math.max(0,Math.round(e.start*sr)),z=Math.min(frames,Math.round(e.end*sr)),n=z-a;if(n<=0)continue;
+    if(e.kind==='cut'){
+      if(n>=frames)continue;
+      const edge=Math.min(Math.round(sr*.005),a,frames-z),all=panBase?[...samples,...panBase]:samples;
+      for(const y of all)for(let i=0;i<edge;i++){const gain=i/edge;y[a-edge+i]*=gain;y[z+i]*=gain}
+      const cut=y=>{const out=new Float32Array(frames-n);out.set(y.subarray(0,a));out.set(y.subarray(z),a);return out};samples=samples.map(cut);if(panBase)panBase=panBase.map(cut);continue;
+    }
+    if(e.kind==='declip'){declipSamples(samples.map(y=>y.subarray(a,z)));continue}
     if(e.kind==='pan'){
-      const left=buffer.getChannelData(0),right=buffer.getChannelData(1),edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));
-      if(!panBase)panBase=[left.slice(),right.slice()];
-      for(let i=0;i<n;i++){let t=n>1?i/(n-1):0;if(e.pan_cycles)t=(1-Math.cos(2*Math.PI*e.pan_cycles*t))/2;const p=e.pan_from+(e.pan_to-e.pan_from)*t,w=edge?Math.min(i/edge,(n-1-i)/edge,1):1,j=a+i,l=left[j],r=right[j],[pl,pr]=panFrame(panBase[0][j],panBase[1][j],p,b.numberOfChannels===1);left[j]=l+(pl-l)*w;right[j]=r+(pr-r)*w}
-    }else for(let c=0;c<channels;c++){
-      const y=buffer.getChannelData(c);
+      const [left,right]=samples,edge=Math.min(Math.round(e.fade*sr),Math.floor((n-1)/2));if(!panBase)panBase=samples.map(y=>y.slice());const base=panBase;
+      for(let i=0;i<n;i++){let t=n>1?i/(n-1):0;if(e.pan_cycles)t=(1-Math.cos(2*Math.PI*e.pan_cycles*t))/2;const p=e.pan_from+(e.pan_to-e.pan_from)*t,w=edge?Math.min(i/edge,(n-1-i)/edge,1):1,j=a+i,l=left[j],r=right[j],[pl,pr]=panFrame(base[0][j],base[1][j],p,b.numberOfChannels===1);left[j]=l+(pl-l)*w;right[j]=r+(pr-r)*w}
+      continue;
+    }
+    for(const y of samples){
       if(e.kind==='fadein')for(let i=0;i<n;i++)y[a+i]*=i/n;
       else if(e.kind==='fadeout')for(let i=0;i<n;i++)y[a+i]*=1-i/n;
-      else{const f=Math.min(Math.round(e.fade*sr),a,b.length-z);for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}y.fill(0,a,z)}
+      else{const f=Math.min(Math.round(e.fade*sr),a,frames-z);for(let i=0;i<f;i++){y[a-f+i]*=1-i/f;y[z+i]*=i/f}y.fill(0,a,z)}
     }
   }
+  const buffer=ctx.createBuffer(channels,samples[0].length,sr);for(let c=0;c<channels;c++)buffer.getChannelData(c).set(samples[c]);
   editedBuffers.set(name,{key,original:b,buffer});return buffer;
 }
 function rebuild(){edBuf=editedBuffer(vocal);renderPanEdits()}
-function changed(){invalidateMaster();saveState();const was=playing,p=pos();rebuild();draw();if(was)play(p)}
-function addEdit(kind,s=sel){if(saving||!s||s[1]-s[0]<0.005)return;panUndo.push(edits.slice());edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];changed()}
+function changed(){invalidateMaster();saveState();const was=playing,p=pos();rebuild();if(vocal&&edBuf&&view.b>edBuf.duration){view.b=edBuf.duration;view.a=Math.min(view.a,Math.max(0,view.b-.05))}draw();if(was)play(Math.min(p,edBuf?.duration||p))}
+function addEdit(kind,s=sel){if(saving||!s||s[1]-s[0]<0.005)return;if(kind==='cut'&&s[1]-s[0]>=editedBuffer(vocal).duration){$('#saveStatus').textContent=t('Klippningen kan inte ta bort hela spåret.');return}panUndo.push(edits.slice());edits.push({kind,start:s[0],end:s[1],fade:0.01});redo=[];if(kind==='cut')sel=null;changed()}
 function undo(){if(saving)return;if(panUndo.length){redo.push({restoreEdits:edits.slice()});edits=panUndo.pop();changed()}else if(edits.length){redo.push(edits.pop());changed()}}
 function redoE(){if(!saving&&redo.length){const entry=redo.pop();if(entry.restoreEdits){panUndo.push(edits.slice());edits=entry.restoreEdits.slice()}else{panUndo.push(edits.slice());edits.push(entry)}changed()}}
 
@@ -676,10 +682,11 @@ function saveState(message){
 }
 async function saveWav(){
   if(!vocal||saving)return;
-  if(!nativeDesktop){await exportWav();return}
+  const format=$('#exportFormat')?.value||'wav';
+  if(!nativeDesktop){await exportWav(format);return}
   saving=true;$("#vsel").disabled=true;$("#f").disabled=true;const snapshot=JSON.stringify(edits),metadata=tracks[vocal]?.metadata,signature=audioFingerprint();saveState("Välj var spåret ska sparas…");
   try{
-    const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot),metadata,restoration:tracks[vocal]?.restoration})});
+    const r=await fetch(`/api/save/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits:JSON.parse(snapshot),metadata,restoration:tracks[vocal]?.restoration,format})});
     if(!r.ok)throw new Error(await r.text());
     const j=await r.json();if(!j.cancelled){savedEdits=signature;saveState(audioFingerprint()===signature?"Sparat: "+j.name:"Sparat. Det finns nya osparade ändringar.")}else saveState("Sparandet avbröts. Dina ändringar finns kvar.");
   }catch(e){saveState("Kunde inte spara: "+e.message)}finally{saving=false;$("#save").disabled=!vocal;$("#projectSave").disabled=!vocal;$("#vsel").disabled=false;$("#f").disabled=false;saveState($("#saveStatus").textContent)}
@@ -706,8 +713,8 @@ addEventListener("keydown",e=>{if(!(e.ctrlKey||e.metaKey))return;const key=e.key
 addEventListener("beforeunload",e=>{if(projectDirty()){e.preventDefault();e.returnValue=""}});
 
 // ---- export (nytt filnamn, originalet orört)
-async function exportWav(){
-  if(!vocal)return;const r=await fetch(`/api/export/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits,restoration:tracks[vocal]?.restoration,metadata:tracks[vocal]?.metadata})});
+async function exportWav(format='wav'){
+  if(!vocal)return;const r=await fetch(`/api/export/${sid}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stem:vocal,edits,restoration:tracks[vocal]?.restoration,metadata:tracks[vocal]?.metadata,format})});
   if(!r.ok){alert("Export misslyckades");return}
   const a=document.createElement("a");a.href=URL.createObjectURL(await r.blob());
   a.download=(r.headers.get("content-disposition")||"").match(/filename="?([^";]+)/)?.[1]||"cleaned.wav";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
